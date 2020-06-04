@@ -127,3 +127,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Data folders and zips
+*.zip
+efficientnet_pytorch/
+results/
+minicity/
+cityscapes/
+baseline_run/
+vipriors-challenges-toolkit/
+
+
