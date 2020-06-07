@@ -33,10 +33,11 @@ class MobileBlock(nn.Module):
             self._bn0 = nn.BatchNorm2d(num_features=oup, momentum=bn_mom, eps=bn_eps)
 
         # Depthwise convolution phase
+        p = kernel_size // 2
         if stride == 0.5:
-            self._depthwise_conv = nn.Conv2d(in_channels=oup, out_channels=oup, groups=oup, kernel_size=kernel_size, stride=1, padding=1, bias=False)
+            self._depthwise_conv = nn.Conv2d(in_channels=oup, out_channels=oup, groups=oup, kernel_size=kernel_size, stride=1, padding=p, bias=False)
         else:
-            self._depthwise_conv = nn.Conv2d(in_channels=oup, out_channels=oup, groups=oup, kernel_size=kernel_size, stride=stride, padding=1, bias=False)
+            self._depthwise_conv = nn.Conv2d(in_channels=oup, out_channels=oup, groups=oup, kernel_size=kernel_size, stride=stride, padding=p, bias=False)
 
         self._bn1 = nn.BatchNorm2d(num_features=oup, momentum=bn_mom, eps=bn_eps)
 
@@ -58,12 +59,14 @@ class MobileBlock(nn.Module):
 
         self.relu = nn.ReLU()
 
-    def forward(self, inputs, drop_connect_rate=None):
+    def forward(self, inputs, drop_connect_rate=0.2, concat=None):
 
         # Expansion and Depthwise Convolution
         x = inputs
+        if concat is not None:
+            x = torch.cat((concat, x), dim=1)
         if self.expand_ratio != 1:
-            x = self._expand_conv(inputs)
+            x = self._expand_conv(x)
             x = self._bn0(x)
             x = self.relu(x)
 
@@ -95,29 +98,53 @@ class MobileBlock(nn.Module):
         return x
 
 class EfficientSeg(nn.Module):
-    def __init__(self):
+    def __init__(self, num_class, options):
         super().__init__()
 
         self.initial_channel_size = 64
+        self.num_class = num_class
+        self.num_repeats = options["num_repeats"]
+        self.kernel_sizes = options["kernel_sizes"]
 
-        self.stages = nn.ModuleList([])
-        self.stages.append(
+        self.forward_stages = nn.ModuleList([])
+        self.forward_stages.append(
             nn.Sequential(
-                MobileBlock(3, self.initial_channel_size),
-                MobileBlock(self.initial_channel_size, self.initial_channel_size)
+                nn.Conv2d(3, self.initial_channel_size, kernel_size=1, stride=1), # forward
+                MobileBlock(self.initial_channel_size, self.initial_channel_size) # forward
             )
         )
-        
-        for i in range(1,5):
-            in_chn = self.initial_channel_size * int(2**(i-1))
-            out_chn = self.initial_channel_size * int(2**i)
-            self.stages.append(
-                nn.Sequential(
-                    MobileBlock(in_chn, out_chn, stride=2, expand_ratio=6),
-                    MobileBlock(out_chn, out_chn, expand_ratio=6),
-                    MobileBlock(out_chn, out_chn, expand_ratio=6)
-                )
+
+        for i, (rep, ker) in enumerate(zip(self.num_repeats, self.kernel_sizes)):
+            in_chn = self.initial_channel_size * int(2**i)
+            out_chn = self.initial_channel_size * int(2**(i+1))
+            seq = [ MobileBlock(in_chn, out_chn, stride=2, expand_ratio=6, kernel_size=ker) ] # down
+            for _ in range(rep-1):
+                seq.append( MobileBlock(out_chn, out_chn, expand_ratio=6, kernel_size=ker) ) # forward
+            self.forward_stages.append( nn.Sequential(*seq) )
+
+        self.backward_stages = nn.ModuleList([])
+        self.backward_stages.append(
+            MobileBlock(self.initial_channel_size * 16, self.initial_channel_size * 8, stride=0.5) # up
+        )
+
+        for i, (rep, ker) in enumerate( list(zip(self.num_repeats[::-1], self.kernel_sizes[::-1]))[1:] ):
+            in_chn = self.initial_channel_size * int(2**(3-i))
+            out_chn = self.initial_channel_size * int(2**(2-i))
+            self.backward_stages.append(
+                MobileBlock(in_chn*2,in_chn, expand_ratio=6, kernel_size=ker) # concat and forward
             )
+            seq = []
+            for _ in range(rep-1):
+                seq.append( MobileBlock(in_chn, in_chn, expand_ratio=6, kernel_size=ker) ) # forward
+            seq.append( MobileBlock(in_chn, out_chn, stride=0.5, kernel_size=ker) ) # up
+            self.backward_stages.append( nn.Sequential( *seq ) )
+            
+        self.backward_stages.append(
+            MobileBlock(self.initial_channel_size * 2, self.initial_channel_size) # last forward
+        )
+        self.backward_stages.append(
+            nn.Conv2d(self.initial_channel_size, self.num_class, kernel_size=1, stride=1) # final
+        )
 
 
     def forward(self, inputs):
@@ -125,20 +152,30 @@ class EfficientSeg(nn.Module):
         x = inputs
         outputs = []
 
-        for stage in self.stages:
+        for stage in self.forward_stages:
             x = stage(x)
             outputs.append(x)
 
-        return outputs
-
+        x = self.backward_stages[0](x)
         
+        for idx in range(1,len(self.backward_stages)):
+            stage = self.backward_stages[idx]
+            if idx % 2 == 1:
+                x = stage(x, concat=outputs[-2-idx//2])
+            else:
+                x = stage(x)
 
-block = EfficientSeg()
+
+        return x
 
 
-inp = torch.rand(1,3,256,256)
+#from torchsummary import summary
 
-out = block(inp)
+#options = { "num_repeats": [1,1,1,1], "kernel_sizes": [3,5,5,3] }
+#model = EfficientSeg(33, options=options).to( torch.device("cuda:0") )
 
-for o in out:
-    print(o.shape)
+#summary(model, input_size=(3,384,768))
+
+#inp = torch.rand(1,3,256,256).to( torch.device("cuda:0") )
+#out = model(inp)
+

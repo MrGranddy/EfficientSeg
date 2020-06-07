@@ -26,7 +26,7 @@ from helpers.model import UNet
 from helpers.minicity import MiniCity
 from helpers.helpers import AverageMeter, ProgressMeter, iouCalc
 
-from model import EffSegNet
+from model import EfficientSeg
 
 parser = argparse.ArgumentParser(description='VIPriors Segmentation baseline training script')
 parser.add_argument('--dataset_path', metavar='path/to/minicity/root', default='./minicity',
@@ -122,7 +122,9 @@ def main():
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     
     # Load model
-    model = EffSegNet(len(MiniCity.validClasses))
+    options = { "num_repeats": [2,2,2,3], "kernel_sizes": [3,5,5,3] }
+    model = EfficientSeg(len(MiniCity.validClasses), options=options)
+    #model = nn.DataParallel(model, device_ids=[0, 1])
     
     # Define loss, optimizer and scheduler
     criterion = nn.CrossEntropyLoss(ignore_index=MiniCity.voidClass)
