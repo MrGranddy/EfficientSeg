@@ -99,18 +99,19 @@ class MobileBlock(nn.Module):
 
 
 class EfficientSeg(nn.Module):
-    def __init__(self, n_classes):
+    def __init__(self, num_classes):
         super(EfficientSeg, self).__init__()
+
         self.inc = MobileBlock(3, 64)
         self.down1 = down(64, 128)
-        self.down2 = down(128, 256)
-        self.down3 = down(256, 512)
-        self.down4 = down(512, 512)
-        self.up1 = up(1024, 256)
-        self.up2 = up(512, 128)
+        self.down2 = down(128, 256, repeat=2)
+        self.down3 = down(256, 512, kernel_size=5, repeat=2)
+        self.down4 = down(512, 512, repeat=3)
+        self.up1 = up(1024, 256, kernel_size=5, repeat=3)
+        self.up2 = up(512, 128, kernel_size=5, repeat=4)
         self.up3 = up(256, 64)
         self.up4 = up(128, 64)
-        self.outc = MobileBlock(64, n_classes)
+        self.outc = MobileBlock(64, num_classes)
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -126,11 +127,15 @@ class EfficientSeg(nn.Module):
         return x
 
 class down(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch, out_ch, kernel_size=3, expand_ratio=1, repeat=1):
         super(down, self).__init__()
+        reps = []
+        for _ in range(repeat-1):
+            reps.append( MobileBlock(in_ch, in_ch, kernel_size=kernel_size, expand_ratio=expand_ratio) )
         self.mpconv = nn.Sequential(
             nn.MaxPool2d(2),
-            MobileBlock(in_ch, out_ch)
+            *reps,
+            MobileBlock(in_ch, out_ch, kernel_size=kernel_size, expand_ratio=expand_ratio)
         )
 
     def forward(self, x):
@@ -139,11 +144,16 @@ class down(nn.Module):
 
 
 class up(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch, out_ch, kernel_size=3, expand_ratio=1, repeat=1):
         super(up, self).__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.conv = MobileBlock(in_ch, out_ch)
+        reps = []
+        for _ in range(repeat-1):
+            reps.append( MobileBlock(in_ch, in_ch, kernel_size=kernel_size, expand_ratio=expand_ratio) )
+        self.conv = nn.Sequential( *reps, 
+            MobileBlock(in_ch, out_ch, kernel_size=kernel_size, expand_ratio=expand_ratio)
+        )
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
@@ -159,12 +169,12 @@ class up(nn.Module):
         x = self.conv(x)
         return x
 
-
 """
 from torchsummary import summary
 model = EfficientSeg(33).to( torch.device("cuda:0") )
 summary(model, input_size=(3,384,768))
 """
+
 #inp = torch.rand(1,3,256,256).to( torch.device("cuda:0") )
 #out = model(inp)
 
