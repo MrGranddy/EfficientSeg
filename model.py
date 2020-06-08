@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from efficientnet_pytorch import EfficientNet
 import torch.nn.functional as F
+import math
 
 def drop_connect(inputs, training: bool = False, drop_connect_rate: float = 0.):
     if not training:
@@ -97,21 +98,29 @@ class MobileBlock(nn.Module):
             x = x + inputs  # skip connection
         return x
 
+def depth_multiplier(x, y):
+    return int( math.ceil(x * y) )
+
+def width_multiplier(x, y):
+    res = int( round(x * y) )
+    if res % 2 == 1:
+        res += 1
+    return res
 
 class EfficientSeg(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, depth_coeff, width_coeff):
         super(EfficientSeg, self).__init__()
 
-        self.inc = MobileBlock(3, 64)
-        self.down1 = down(64, 128)
-        self.down2 = down(128, 256, repeat=2)
-        self.down3 = down(256, 512, kernel_size=5, repeat=2)
-        self.down4 = down(512, 512, repeat=3)
-        self.up1 = up(1024, 256, kernel_size=5, repeat=3)
-        self.up2 = up(512, 128, kernel_size=5, repeat=4)
-        self.up3 = up(256, 64)
-        self.up4 = up(128, 64)
-        self.outc = MobileBlock(64, num_classes)
+        self.inc = MobileBlock(3, width_multiplier(64, width_coeff))
+        self.down1 = down(width_multiplier(64, width_coeff), width_multiplier(128, width_coeff), repeat=depth_multiplier(1, depth_coeff))
+        self.down2 = down(width_multiplier(128, width_coeff), width_multiplier(256, width_coeff), repeat=depth_multiplier(2, depth_coeff))
+        self.down3 = down(width_multiplier(256, width_coeff), width_multiplier(512, width_coeff), kernel_size=5, repeat=depth_multiplier(2, depth_coeff))
+        self.down4 = down(width_multiplier(512, width_coeff), width_multiplier(512, width_coeff), repeat=depth_multiplier(3, depth_coeff))
+        self.up1 = up(width_multiplier(1024, width_coeff), width_multiplier(256, width_coeff), kernel_size=5, repeat=depth_multiplier(3, depth_coeff))
+        self.up2 = up(width_multiplier(512, width_coeff), width_multiplier(128, width_coeff), kernel_size=5, repeat=depth_multiplier(4, depth_coeff))
+        self.up3 = up(width_multiplier(256, width_coeff), width_multiplier(64, width_coeff), repeat=depth_multiplier(1, depth_coeff))
+        self.up4 = up(width_multiplier(128, width_coeff), width_multiplier(64, width_coeff), repeat=depth_multiplier(1, depth_coeff))
+        self.outc = MobileBlock(width_multiplier(64, width_coeff), num_classes)
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -169,11 +178,11 @@ class up(nn.Module):
         x = self.conv(x)
         return x
 
-"""
+
 from torchsummary import summary
-model = EfficientSeg(33).to( torch.device("cuda:0") )
+model = EfficientSeg(33, depth_coeff=1, width_coeff=1).to( torch.device("cuda:0") )
 summary(model, input_size=(3,384,768))
-"""
+
 
 #inp = torch.rand(1,3,256,256).to( torch.device("cuda:0") )
 #out = model(inp)
