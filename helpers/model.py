@@ -119,10 +119,11 @@ class outconv(nn.Module):
     def forward(self, x):
         x = self.conv(x)
         return x
-
+"""
 model = UNet(33).to( torch.device("cuda:0") )
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(count_parameters(model))
 from torchsummary import summary
 summary(model, input_size=(3,384,768))
+"""

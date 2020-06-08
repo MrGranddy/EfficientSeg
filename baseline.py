@@ -122,9 +122,7 @@ def main():
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     
     # Load model
-    options = { "num_repeats": [2,2,2,3], "kernel_sizes": [3,5,5,3] }
-    model = EfficientSeg(len(MiniCity.validClasses), options=options)
-    #model = nn.DataParallel(model, device_ids=[0, 1])
+    model = EfficientSeg(len(MiniCity.validClasses))
     
     # Define loss, optimizer and scheduler
     criterion = nn.CrossEntropyLoss(ignore_index=MiniCity.voidClass)

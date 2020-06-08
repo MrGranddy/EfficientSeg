@@ -1,1 +1,1 @@
-python baseline.py --lr_init="0.0001" --lr_min="0.00001" --lr_patience="3" --batch_size="1" --lr_momentum="0.9" --lr_weight_decay="1.e-5"
+python baseline.py --lr_init="0.0001" --lr_min="0.00001" --lr_patience="3" --batch_size="8" --lr_momentum="0.9" --lr_weight_decay="1.e-5"

@@ -97,85 +97,74 @@ class MobileBlock(nn.Module):
             x = x + inputs  # skip connection
         return x
 
+
 class EfficientSeg(nn.Module):
-    def __init__(self, num_class, options):
-        super().__init__()
+    def __init__(self, n_classes):
+        super(EfficientSeg, self).__init__()
+        self.inc = MobileBlock(3, 64)
+        self.down1 = down(64, 128)
+        self.down2 = down(128, 256)
+        self.down3 = down(256, 512)
+        self.down4 = down(512, 512)
+        self.up1 = up(1024, 256)
+        self.up2 = up(512, 128)
+        self.up3 = up(256, 64)
+        self.up4 = up(128, 64)
+        self.outc = MobileBlock(64, n_classes)
 
-        self.initial_channel_size = 64
-        self.num_class = num_class
-        self.num_repeats = options["num_repeats"]
-        self.kernel_sizes = options["kernel_sizes"]
+    def forward(self, x):
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        x = self.up1(x5,x4)
+        x = self.up2(x,x3)
+        x = self.up3(x,x2)
+        x = self.up4(x,x1)
+        x = self.outc(x)
+        return x
 
-        self.forward_stages = nn.ModuleList([])
-        self.forward_stages.append(
-            nn.Sequential(
-                nn.Conv2d(3, self.initial_channel_size, kernel_size=1, stride=1), # forward
-                MobileBlock(self.initial_channel_size, self.initial_channel_size) # forward
-            )
+class down(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(down, self).__init__()
+        self.mpconv = nn.Sequential(
+            nn.MaxPool2d(2),
+            MobileBlock(in_ch, out_ch)
         )
 
-        for i, (rep, ker) in enumerate(zip(self.num_repeats, self.kernel_sizes)):
-            in_chn = self.initial_channel_size * int(2**i)
-            out_chn = self.initial_channel_size * int(2**(i+1))
-            seq = [ MobileBlock(in_chn, out_chn, stride=2, expand_ratio=6, kernel_size=ker) ] # down
-            for _ in range(rep-1):
-                seq.append( MobileBlock(out_chn, out_chn, expand_ratio=6, kernel_size=ker) ) # forward
-            self.forward_stages.append( nn.Sequential(*seq) )
-
-        self.backward_stages = nn.ModuleList([])
-        self.backward_stages.append(
-            MobileBlock(self.initial_channel_size * 16, self.initial_channel_size * 8, stride=0.5) # up
-        )
-
-        for i, (rep, ker) in enumerate( list(zip(self.num_repeats[::-1], self.kernel_sizes[::-1]))[1:] ):
-            in_chn = self.initial_channel_size * int(2**(3-i))
-            out_chn = self.initial_channel_size * int(2**(2-i))
-            self.backward_stages.append(
-                MobileBlock(in_chn*2,in_chn, expand_ratio=6, kernel_size=ker) # concat and forward
-            )
-            seq = []
-            for _ in range(rep-1):
-                seq.append( MobileBlock(in_chn, in_chn, expand_ratio=6, kernel_size=ker) ) # forward
-            seq.append( MobileBlock(in_chn, out_chn, stride=0.5, kernel_size=ker) ) # up
-            self.backward_stages.append( nn.Sequential( *seq ) )
-            
-        self.backward_stages.append(
-            MobileBlock(self.initial_channel_size * 2, self.initial_channel_size) # last forward
-        )
-        self.backward_stages.append(
-            nn.Conv2d(self.initial_channel_size, self.num_class, kernel_size=1, stride=1) # final
-        )
-
-
-    def forward(self, inputs):
-
-        x = inputs
-        outputs = []
-
-        for stage in self.forward_stages:
-            x = stage(x)
-            outputs.append(x)
-
-        x = self.backward_stages[0](x)
-        
-        for idx in range(1,len(self.backward_stages)):
-            stage = self.backward_stages[idx]
-            if idx % 2 == 1:
-                x = stage(x, concat=outputs[-2-idx//2])
-            else:
-                x = stage(x)
-
-
+    def forward(self, x):
+        x = self.mpconv(x)
         return x
 
 
-#from torchsummary import summary
+class up(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(up, self).__init__()
 
-#options = { "num_repeats": [1,1,1,1], "kernel_sizes": [3,5,5,3] }
-#model = EfficientSeg(33, options=options).to( torch.device("cuda:0") )
+        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        self.conv = MobileBlock(in_ch, out_ch)
 
-#summary(model, input_size=(3,384,768))
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        
+        # input is CHW
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
 
+        x1 = F.pad(x1, (diffX // 2, diffX - diffX//2,
+                        diffY // 2, diffY - diffY//2))
+        
+        x = torch.cat([x2, x1], dim=1)
+        x = self.conv(x)
+        return x
+
+
+"""
+from torchsummary import summary
+model = EfficientSeg(33).to( torch.device("cuda:0") )
+summary(model, input_size=(3,384,768))
+"""
 #inp = torch.rand(1,3,256,256).to( torch.device("cuda:0") )
 #out = model(inp)
 
