@@ -74,6 +74,7 @@ parser.add_argument('--predict', metavar='path/to/weights',
                     default=None, type=str,
                     help='provide path to model weights to predict on validation set')
 
+
 """
 ===========
 Main method
@@ -115,23 +116,23 @@ def main():
                batch_size=args.batch_size, shuffle=True,
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     dataloaders['val'] = torch.utils.data.DataLoader(valset,
-               batch_size=args.batch_size, shuffle=False,
+               batch_size=4, shuffle=False,
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     dataloaders['test'] = torch.utils.data.DataLoader(testset,
-               batch_size=args.batch_size, shuffle=False,
+               batch_size=4, shuffle=False,
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     
     # Load model
-    model = EfficientSeg(len(MiniCity.validClasses))
+    model = EfficientSeg(len(MiniCity.validClasses), depth_coeff=1.0, width_coeff=1.0)
     
     # Define loss, optimizer and scheduler
     criterion = nn.CrossEntropyLoss(ignore_index=MiniCity.voidClass)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_init,
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_init, # TODO adam 1e-4 same setup
                                 #momentum=args.lr_momentum,
                                 weight_decay=args.lr_weight_decay
                                 )
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-        patience=args.lr_patience, min_lr=args.lr_min)
+    #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+    #    patience=args.lr_patience, min_lr=args.lr_min)
     
     # Initialize metrics
     best_miou = 0.0
@@ -175,11 +176,14 @@ def main():
     since = time.time()
     
     for epoch in range(start_epoch,args.epochs):
+
+        #for param_group in optimizer.param_groups:
+        #    param_group["lr"] = 0.256 * (0.97 ** (epoch // 2.4))
         
         # Train
         print('--- Training ---')
         train_loss, train_acc = train_epoch(dataloaders['train'], model,
-                                            criterion, optimizer, scheduler,
+                                            criterion, optimizer, None,
                                             epoch, void=MiniCity.voidClass)
         metrics['train_loss'].append(train_loss)
         metrics['train_acc'].append(train_acc)
@@ -261,6 +265,9 @@ Routine functions
 """
 
 def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, void=-1):
+
+    mse = nn.MSELoss()
+
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     loss_running = AverageMeter('Loss', ':.4e')
@@ -293,9 +300,9 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             optimizer.zero_grad()
         
             # forward pass
-            outputs = model(inputs)
+            outputs, edge_pred, edge = model(inputs)
             preds = torch.argmax(outputs, 1)
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs, labels) + mse(edge_pred, edge)
             
             # backward pass
             loss.backward()
@@ -318,7 +325,7 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             end = time.time()
 
         # Reduce learning rate
-        lr_scheduler.step(loss_running.avg)
+        #lr_scheduler.step(loss_running.avg)
         
     return loss_running.avg, acc_running.avg
 

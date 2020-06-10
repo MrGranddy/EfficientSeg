@@ -3,6 +3,10 @@ from torch import nn
 from efficientnet_pytorch import EfficientNet
 import torch.nn.functional as F
 import math
+import numpy as np
+import scipy.ndimage
+
+device = torch.device("cuda:0")
 
 def drop_connect(inputs, training: bool = False, drop_connect_rate: float = 0.):
     if not training:
@@ -14,6 +18,36 @@ def drop_connect(inputs, training: bool = False, drop_connect_rate: float = 0.):
     random_tensor.floor_()  # binarize
     output = inputs.div(keep_prob) * random_tensor
     return output
+
+
+class EdgeDetector(nn.Module):
+    def __init__(self, gaussian_size=11):
+        super().__init__()
+
+
+        self.gs = gaussian_size
+        self.gp = self.gs // 2
+        self.sigma = 1
+
+        n = np.zeros((gaussian_size,gaussian_size))
+        n[5,5] = 1
+        self.gaussian_kernel = torch.tensor(scipy.ndimage.gaussian_filter(n,sigma=2))
+
+        self.gk = self.gaussian_kernel.unsqueeze(0).unsqueeze(0).expand(3,-1,-1,-1).float()
+        self.gk = self.gk.to(device)
+
+        self.sobel_y = torch.tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).expand(3,-1,-1,-1)
+        self.sobel_x = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).expand(3,-1,-1,-1)
+        
+        self.sobel_x = self.sobel_x.to(device)
+        self.sobel_y = self.sobel_y.to(device)
+
+    def forward(self, inputs):
+        noise_reducted = F.conv2d(inputs, self.gk, stride=1, padding=self.gp, groups=3)
+        edge_x = F.conv2d(noise_reducted, self.sobel_x, stride=1, padding=1, groups=3)
+        edge_y = F.conv2d(noise_reducted, self.sobel_y, stride=1, padding=1, groups=3)
+
+        return torch.sqrt(torch.square(edge_x) + torch.square(edge_y))
 
 class MobileBlock(nn.Module):
     def __init__(self, in_chn, out_chn, kernel_size=3, stride=1, expand_ratio=1, bn_mom=0.99, bn_eps=1e-3, se_ratio=0.25, id_skip=True):
@@ -56,7 +90,6 @@ class MobileBlock(nn.Module):
         # If upsampling
         if stride == 0.5:
             self.upsample = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False)
-
 
         self.relu = nn.ReLU()
 
@@ -111,18 +144,29 @@ class EfficientSeg(nn.Module):
     def __init__(self, num_classes, depth_coeff, width_coeff):
         super(EfficientSeg, self).__init__()
 
-        self.inc = MobileBlock(3, width_multiplier(64, width_coeff))
-        self.down1 = down(width_multiplier(64, width_coeff), width_multiplier(128, width_coeff), repeat=depth_multiplier(1, depth_coeff))
-        self.down2 = down(width_multiplier(128, width_coeff), width_multiplier(256, width_coeff), repeat=depth_multiplier(2, depth_coeff))
-        self.down3 = down(width_multiplier(256, width_coeff), width_multiplier(512, width_coeff), kernel_size=5, repeat=depth_multiplier(2, depth_coeff))
-        self.down4 = down(width_multiplier(512, width_coeff), width_multiplier(512, width_coeff), repeat=depth_multiplier(3, depth_coeff))
-        self.up1 = up(width_multiplier(1024, width_coeff), width_multiplier(256, width_coeff), kernel_size=5, repeat=depth_multiplier(3, depth_coeff))
-        self.up2 = up(width_multiplier(512, width_coeff), width_multiplier(128, width_coeff), kernel_size=5, repeat=depth_multiplier(4, depth_coeff))
-        self.up3 = up(width_multiplier(256, width_coeff), width_multiplier(64, width_coeff), repeat=depth_multiplier(1, depth_coeff))
-        self.up4 = up(width_multiplier(128, width_coeff), width_multiplier(64, width_coeff), repeat=depth_multiplier(1, depth_coeff))
-        self.outc = MobileBlock(width_multiplier(64, width_coeff), num_classes)
+        self.detector = EdgeDetector()
+
+        ord_1 = width_multiplier(64, width_coeff)
+        ord_2 = ord_1 * 2
+        ord_3 = ord_2 * 2
+        ord_4 = ord_3 * 2
+        ord_5 = ord_4 * 2
+
+        self.inc = MobileBlock(3, ord_1)
+        self.down1 = down(ord_1, ord_2, repeat=depth_multiplier(1, depth_coeff))
+        self.down2 = down(ord_2, ord_3, repeat=depth_multiplier(2, depth_coeff))
+        self.down3 = down(ord_3, ord_4, kernel_size=5, repeat=depth_multiplier(2, depth_coeff))
+        self.down4 = down(ord_4, ord_4, repeat=depth_multiplier(3, depth_coeff))
+        self.up1 = up(ord_5, ord_3, kernel_size=5, repeat=depth_multiplier(3, depth_coeff))
+        self.up2 = up(ord_4, ord_2, kernel_size=5, repeat=depth_multiplier(4, depth_coeff))
+        self.up3 = up(ord_3, ord_1, repeat=depth_multiplier(1, depth_coeff))
+        self.up4 = up(ord_2, ord_1, repeat=depth_multiplier(1, depth_coeff))
+        self.outc = MobileBlock(ord_1, num_classes)
+        self.outd = MobileBlock(ord_1, 3)
 
     def forward(self, x):
+        edge = self.detector(x)
+
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
@@ -132,8 +176,16 @@ class EfficientSeg(nn.Module):
         x = self.up2(x,x3)
         x = self.up3(x,x2)
         x = self.up4(x,x1)
+
+        last_x = x
+
         x = self.outc(x)
-        return x
+        edge_pred = self.outd(last_x)
+
+        if self.training:
+            return x, edge_pred, edge
+        else:
+            return x
 
 class down(nn.Module):
     def __init__(self, in_ch, out_ch, kernel_size=3, expand_ratio=1, repeat=1):
@@ -178,11 +230,11 @@ class up(nn.Module):
         x = self.conv(x)
         return x
 
-
+"""
 from torchsummary import summary
-model = EfficientSeg(33, depth_coeff=1, width_coeff=1).to( torch.device("cuda:0") )
+model = EfficientSeg(33, depth_coeff=1.6, width_coeff=1.1).to( torch.device("cuda:0") )
 summary(model, input_size=(3,384,768))
-
+"""
 
 #inp = torch.rand(1,3,256,256).to( torch.device("cuda:0") )
 #out = model(inp)
