@@ -21,31 +21,41 @@ def drop_connect(inputs, training: bool = False, drop_connect_rate: float = 0.):
 
 
 class EdgeDetector(nn.Module):
-    def __init__(self, gaussian_size=11):
+    def __init__(self, num_classes, gaussian_size=11):
         super().__init__()
 
-
+        self.num_classes = num_classes
         self.gs = gaussian_size
         self.gp = self.gs // 2
         self.sigma = 1
 
         n = np.zeros((gaussian_size,gaussian_size))
-        n[5,5] = 1
-        self.gaussian_kernel = torch.tensor(scipy.ndimage.gaussian_filter(n,sigma=2))
+        n[self.gp,self.gp] = 1
+        self.gaussian_kernel = torch.tensor(scipy.ndimage.gaussian_filter(n,sigma=self.gp//2))
 
-        self.gk = self.gaussian_kernel.unsqueeze(0).unsqueeze(0).expand(3,-1,-1,-1).float()
+        self.gk = self.gaussian_kernel.unsqueeze(0).unsqueeze(0).expand(self.num_classes,-1,-1,-1).float()
         self.gk = self.gk.to(device)
 
-        self.sobel_y = torch.tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).expand(3,-1,-1,-1)
-        self.sobel_x = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).expand(3,-1,-1,-1)
+        self.sobel_y = torch.tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).expand(self.num_classes,-1,-1,-1)
+        self.sobel_x = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).expand(self.num_classes,-1,-1,-1)
         
         self.sobel_x = self.sobel_x.to(device)
         self.sobel_y = self.sobel_y.to(device)
 
-    def forward(self, inputs):
-        noise_reducted = F.conv2d(inputs, self.gk, stride=1, padding=self.gp, groups=3)
-        edge_x = F.conv2d(noise_reducted, self.sobel_x, stride=1, padding=1, groups=3)
-        edge_y = F.conv2d(noise_reducted, self.sobel_y, stride=1, padding=1, groups=3)
+    def forward(self, mask):
+
+        bs, h, w = mask.shape
+        y = mask.reshape(bs * h * w, 1)
+
+        y_onehot = torch.FloatTensor(bs * h * w, self.num_classes).to(device)
+        y_onehot.zero_()
+        y_onehot.scatter_(1, y, 1)
+
+        mask_onehot = y_onehot.reshape(bs, h, w, self.num_classes).permute(0, 3, 1, 2)
+
+        noise_reducted = F.conv2d(mask_onehot, self.gk, stride=1, padding=self.gp, groups=self.num_classes)
+        edge_x = F.conv2d(noise_reducted, self.sobel_x, stride=1, padding=1, groups=self.num_classes)
+        edge_y = F.conv2d(noise_reducted, self.sobel_y, stride=1, padding=1, groups=self.num_classes)
 
         return torch.sqrt(torch.square(edge_x) + torch.square(edge_y))
 
@@ -93,12 +103,11 @@ class MobileBlock(nn.Module):
 
         self.relu = nn.ReLU()
 
-    def forward(self, inputs, drop_connect_rate=0.2, concat=None):
+    def forward(self, inputs, drop_connect_rate=0.2):
 
         # Expansion and Depthwise Convolution
         x = inputs
-        if concat is not None:
-            x = torch.cat((concat, x), dim=1)
+
         if self.expand_ratio != 1:
             x = self._expand_conv(x)
             x = self._bn0(x)
@@ -141,10 +150,10 @@ def width_multiplier(x, y):
     return res
 
 class EfficientSeg(nn.Module):
-    def __init__(self, num_classes, depth_coeff, width_coeff):
+    def __init__(self, num_classes, depth_coeff, width_coeff, void_class=0):
         super(EfficientSeg, self).__init__()
 
-        self.detector = EdgeDetector()
+        self.detector = EdgeDetector(num_classes, gaussian_size=7)
 
         ord_1 = width_multiplier(64, width_coeff)
         ord_2 = ord_1 * 2
@@ -161,11 +170,13 @@ class EfficientSeg(nn.Module):
         self.up2 = up(ord_4, ord_2, kernel_size=5, repeat=depth_multiplier(4, depth_coeff))
         self.up3 = up(ord_3, ord_1, repeat=depth_multiplier(1, depth_coeff))
         self.up4 = up(ord_2, ord_1, repeat=depth_multiplier(1, depth_coeff))
+        self.outb = MobileBlock(ord_1, ord_1)
         self.outc = MobileBlock(ord_1, num_classes)
-        self.outd = MobileBlock(ord_1, 3)
+        self.outd = MobileBlock(ord_1, num_classes)
 
-    def forward(self, x):
-        edge = self.detector(x)
+    def forward(self, x, mask=None):
+        if self.training:
+            edge = self.detector(mask)
 
         x1 = self.inc(x)
         x2 = self.down1(x1)
@@ -176,11 +187,12 @@ class EfficientSeg(nn.Module):
         x = self.up2(x,x3)
         x = self.up3(x,x2)
         x = self.up4(x,x1)
-
+        x = self.outb(x)
         last_x = x
-
         x = self.outc(x)
-        edge_pred = self.outd(last_x)
+
+        if self.training:
+            edge_pred = self.outd(last_x)
 
         if self.training:
             return x, edge_pred, edge

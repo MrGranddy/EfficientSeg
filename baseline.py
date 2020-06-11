@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 import torchvision.transforms.functional as TF
+from torchvision import transforms
 
 import time
 import os
@@ -123,7 +124,7 @@ def main():
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     
     # Load model
-    model = EfficientSeg(len(MiniCity.validClasses), depth_coeff=1.0, width_coeff=1.0)
+    model = EfficientSeg(len(MiniCity.validClasses), depth_coeff=1.0, width_coeff=1.0, void_class=MiniCity.voidClass)
     
     # Define loss, optimizer and scheduler
     criterion = nn.CrossEntropyLoss(ignore_index=MiniCity.voidClass)
@@ -131,8 +132,8 @@ def main():
                                 #momentum=args.lr_momentum,
                                 weight_decay=args.lr_weight_decay
                                 )
-    #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-    #    patience=args.lr_patience, min_lr=args.lr_min)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+        patience=args.lr_patience, min_lr=args.lr_min, threshold=0.01)
     
     # Initialize metrics
     best_miou = 0.0
@@ -201,6 +202,7 @@ def main():
         metrics['val_acc'].append(val_acc)
         metrics['val_loss'].append(val_loss)
         metrics['miou'].append(miou)
+        #scheduler.step(val_loss)
         
         # Write logs
         with open('baseline_run/log_epoch.csv', 'a') as epoch_log:
@@ -300,7 +302,16 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             optimizer.zero_grad()
         
             # forward pass
-            outputs, edge_pred, edge = model(inputs)
+            outputs, edge_pred, edge = model(inputs, labels)
+            
+            """
+            edge_gray = torch.mean(edge[0,...], dim=0)
+            transforms.ToPILImage()(edge_pred[0,...].detach().cpu()).save("pred_edge.png")
+            transforms.ToPILImage()(edge_gray.detach().cpu()).save("edge.png")
+            print(MiniCity.voidClass)
+            exit()
+            """
+
             preds = torch.argmax(outputs, 1)
             loss = criterion(outputs, labels) + mse(edge_pred, edge)
             
@@ -325,7 +336,6 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             end = time.time()
 
         # Reduce learning rate
-        #lr_scheduler.step(loss_running.avg)
         
     return loss_running.avg, acc_running.avg
 
@@ -345,7 +355,7 @@ def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasse
     res = args.test_size[0]*args.test_size[1]
     
     # Set model in evaluation mode
-    model.eval()
+    model.eval() # TODO ADD PLATO SCHEDULAR INSPECT LOSSES
     
     with torch.no_grad():
         end = time.time()

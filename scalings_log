@@ -287,3 +287,88 @@ vehicle       : 0.773    0.682
 --------------------------------
 Score Average : 0.713    0.530
 --------------------------------
+
+edge map, adam 1.e-3, drop_connect 0.3
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.946      nan
+sidewalk      : 0.668      nan
+building      : 0.801      nan
+wall          : 0.112      nan
+fence         : 0.127      nan
+pole          : 0.355      nan
+traffic light : 0.339      nan
+traffic sign  : 0.321      nan
+vegetation    : 0.840      nan
+terrain       : 0.419      nan
+sky           : 0.855      nan
+person        : 0.466    0.323
+rider         : 0.188    0.090
+car           : 0.841    0.778
+truck         : 0.092    0.063
+bus           : 0.028    0.012
+train         : 0.097    0.019
+motorcycle    : 0.276    0.132
+bicycle       : 0.380    0.213
+--------------------------------
+Score Average : 0.429    0.204
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.965      nan
+construction  : 0.813      nan
+object        : 0.373      nan
+nature        : 0.821      nan
+sky           : 0.855      nan
+human         : 0.483    0.346
+vehicle       : 0.812    0.744
+--------------------------------
+Score Average : 0.732    0.545
+--------------------------------
+
+same but extra conv at the end
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.943      nan
+sidewalk      : 0.660      nan
+building      : 0.803      nan
+wall          : 0.099      nan
+fence         : 0.143      nan
+pole          : 0.369      nan
+traffic light : 0.268      nan
+traffic sign  : 0.326      nan
+vegetation    : 0.825      nan
+terrain       : 0.398      nan
+sky           : 0.874      nan
+person        : 0.474    0.334
+rider         : 0.193    0.124
+car           : 0.842    0.769
+truck         : 0.154    0.123
+bus           : 0.018    0.017
+train         : 0.000    0.000
+motorcycle    : 0.345    0.219
+bicycle       : 0.441    0.151
+--------------------------------
+Score Average : 0.430    0.217
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.957      nan
+construction  : 0.807      nan
+object        : 0.379      nan
+nature        : 0.801      nan
+sky           : 0.874      nan
+human         : 0.496    0.364
+vehicle       : 0.801    0.732
+--------------------------------
+Score Average : 0.731    0.548
+--------------------------------
+
+
+
