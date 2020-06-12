@@ -117,17 +117,18 @@ def main():
                batch_size=args.batch_size, shuffle=True,
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     dataloaders['val'] = torch.utils.data.DataLoader(valset,
-               batch_size=4, shuffle=False,
+               batch_size=args.batch_size, shuffle=False,
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     dataloaders['test'] = torch.utils.data.DataLoader(testset,
-               batch_size=4, shuffle=False,
+               batch_size=args.batch_size, shuffle=False,
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     
     # Load model
-    model = EfficientSeg(len(MiniCity.validClasses), depth_coeff=1.0, width_coeff=1.0, void_class=MiniCity.voidClass)
+    model = EfficientSeg(len(MiniCity.validClasses), width_coeff=1.0, depth_coeff=1.0)
     
     # Define loss, optimizer and scheduler
     criterion = nn.CrossEntropyLoss(ignore_index=MiniCity.voidClass)
+    edge_criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_init, # TODO adam 1e-4 same setup
                                 #momentum=args.lr_momentum,
                                 weight_decay=args.lr_weight_decay
@@ -185,7 +186,7 @@ def main():
         print('--- Training ---')
         train_loss, train_acc = train_epoch(dataloaders['train'], model,
                                             criterion, optimizer, None,
-                                            epoch, void=MiniCity.voidClass)
+                                            epoch, void=MiniCity.voidClass, edge_criterion=edge_criterion)
         metrics['train_loss'].append(train_loss)
         metrics['train_acc'].append(train_acc)
         print('Epoch {} train loss: {:.4f}, acc: {:.4f}'.format(epoch,train_loss,train_acc))
@@ -266,9 +267,7 @@ Routine functions
 =================
 """
 
-def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, void=-1):
-
-    mse = nn.MSELoss()
+def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, void=-1, edge_criterion=None):
 
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
@@ -304,16 +303,20 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             # forward pass
             outputs, edge_pred, edge = model(inputs, labels)
             
-            """
-            edge_gray = torch.mean(edge[0,...], dim=0)
-            transforms.ToPILImage()(edge_pred[0,...].detach().cpu()).save("pred_edge.png")
-            transforms.ToPILImage()(edge_gray.detach().cpu()).save("edge.png")
-            print(MiniCity.voidClass)
-            exit()
-            """
+            if epoch_step == 0:
+                for i in range( edge.shape[0] ):
+                    edge_gray = torch.sum(edge[i,...].float(), dim=0)
+                    edge_pred_gray = torch.mean(edge_pred[i,...], dim=0)
+                    transforms.ToPILImage()(edge_pred_gray.detach().cpu()).save("edge_preds/%d_%d_pred_edge.png" % (epoch, i))
+                    transforms.ToPILImage()(edge_gray.detach().cpu()).save("edge_preds/%d_%d_edge.png" % (epoch, i))
 
             preds = torch.argmax(outputs, 1)
-            loss = criterion(outputs, labels) + mse(edge_pred, edge)
+
+            bs, c, h, w = edge.shape
+            edge = edge.view(bs*c*h*w)
+            edge_pred = edge.view(bs*c*h*w)
+
+            loss = criterion(outputs, labels) + edge_criterion(edge_pred, edge)
             
             # backward pass
             loss.backward()

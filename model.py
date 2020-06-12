@@ -44,6 +44,7 @@ class EdgeDetector(nn.Module):
 
     def forward(self, mask):
 
+        mask = mask.long()
         bs, h, w = mask.shape
         y = mask.reshape(bs * h * w, 1)
 
@@ -56,8 +57,10 @@ class EdgeDetector(nn.Module):
         noise_reducted = F.conv2d(mask_onehot, self.gk, stride=1, padding=self.gp, groups=self.num_classes)
         edge_x = F.conv2d(noise_reducted, self.sobel_x, stride=1, padding=1, groups=self.num_classes)
         edge_y = F.conv2d(noise_reducted, self.sobel_y, stride=1, padding=1, groups=self.num_classes)
-
-        return torch.sqrt(torch.square(edge_x) + torch.square(edge_y))
+        edge_map = torch.sqrt(torch.square(edge_x) + torch.square(edge_y))
+        edge_map /= torch.max(edge_map)
+        
+        return (edge_map > 0.3).float()
 
 class MobileBlock(nn.Module):
     def __init__(self, in_chn, out_chn, kernel_size=3, stride=1, expand_ratio=1, bn_mom=0.99, bn_eps=1e-3, se_ratio=0.25, id_skip=True):
@@ -150,10 +153,10 @@ def width_multiplier(x, y):
     return res
 
 class EfficientSeg(nn.Module):
-    def __init__(self, num_classes, depth_coeff, width_coeff, void_class=0):
+    def __init__(self, num_classes, depth_coeff, width_coeff):
         super(EfficientSeg, self).__init__()
 
-        self.detector = EdgeDetector(num_classes, gaussian_size=7)
+        self.detector = EdgeDetector(num_classes, gaussian_size=11)
 
         ord_1 = width_multiplier(64, width_coeff)
         ord_2 = ord_1 * 2
@@ -244,8 +247,8 @@ class up(nn.Module):
 
 """
 from torchsummary import summary
-model = EfficientSeg(33, depth_coeff=1.6, width_coeff=1.1).to( torch.device("cuda:0") )
-summary(model, input_size=(3,384,768))
+model = EfficientSeg(20, width_coeff=1.4, depth_coeff=1.8).to( torch.device("cuda:0") )
+summary(model, input_size=[(3,384,768), (384,768)])
 """
 
 #inp = torch.rand(1,3,256,256).to( torch.device("cuda:0") )

@@ -370,5 +370,127 @@ vehicle       : 0.801    0.732
 Score Average : 0.731    0.548
 --------------------------------
 
+edge map is from seg map NOW
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.947      nan
+sidewalk      : 0.686      nan
+building      : 0.806      nan
+wall          : 0.087      nan
+fence         : 0.103      nan
+pole          : 0.357      nan
+traffic light : 0.314      nan
+traffic sign  : 0.308      nan
+vegetation    : 0.834      nan
+terrain       : 0.417      nan
+sky           : 0.884      nan
+person        : 0.443    0.366
+rider         : 0.172    0.131
+car           : 0.842    0.777
+truck         : 0.190    0.089
+bus           : 0.007    0.003
+train         : 0.126    0.027
+motorcycle    : 0.291    0.190
+bicycle       : 0.422    0.183
+--------------------------------
+Score Average : 0.434    0.221
+--------------------------------
 
 
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.963      nan
+construction  : 0.813      nan
+object        : 0.373      nan
+nature        : 0.818      nan
+sky           : 0.884      nan
+human         : 0.466    0.399
+vehicle       : 0.812    0.735
+--------------------------------
+Score Average : 0.733    0.567
+--------------------------------
+
+
+everything same but width_coeff=1.4, depth_coeff=1.8
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.946      nan
+sidewalk      : 0.692      nan
+building      : 0.818      nan
+wall          : 0.127      nan
+fence         : 0.102      nan
+pole          : 0.412      nan
+traffic light : 0.326      nan
+traffic sign  : 0.410      nan
+vegetation    : 0.858      nan
+terrain       : 0.491      nan
+sky           : 0.893      nan
+person        : 0.571    0.383
+rider         : 0.255    0.181
+car           : 0.861    0.805
+truck         : 0.112    0.144
+bus           : 0.032    0.015
+train         : 0.038    0.008
+motorcycle    : 0.251    0.133
+bicycle       : 0.447    0.189
+--------------------------------
+Score Average : 0.455    0.232
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.966      nan
+construction  : 0.832      nan
+object        : 0.433      nan
+nature        : 0.841      nan
+sky           : 0.893      nan
+human         : 0.596    0.414
+vehicle       : 0.821    0.768
+--------------------------------
+Score Average : 0.769    0.591
+--------------------------------
+
+
+now again with smaller but with BCE edge loss if fails go back to mse and start augmentation
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.944      nan
+sidewalk      : 0.662      nan
+building      : 0.792      nan
+wall          : 0.156      nan
+fence         : 0.120      nan
+pole          : 0.371      nan
+traffic light : 0.304      nan
+traffic sign  : 0.348      nan
+vegetation    : 0.829      nan
+terrain       : 0.358      nan
+sky           : 0.882      nan
+person        : 0.480    0.311
+rider         : 0.195    0.138
+car           : 0.821    0.760
+truck         : 0.200    0.071
+bus           : 0.000    0.000
+train         : 0.071    0.016
+motorcycle    : 0.281    0.150
+bicycle       : 0.424    0.172
+--------------------------------
+Score Average : 0.434    0.202
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.963      nan
+construction  : 0.807      nan
+object        : 0.388      nan
+nature        : 0.809      nan
+sky           : 0.882      nan
+human         : 0.503    0.338
+vehicle       : 0.800    0.732
+--------------------------------
+Score Average : 0.736    0.535
+--------------------------------
