@@ -494,3 +494,87 @@ vehicle       : 0.800    0.732
 --------------------------------
 Score Average : 0.736    0.535
 --------------------------------
+
+added random scale of my own, everythin else is the same
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.945      nan
+sidewalk      : 0.673      nan
+building      : 0.788      nan
+wall          : 0.155      nan
+fence         : 0.114      nan
+pole          : 0.357      nan
+traffic light : 0.318      nan
+traffic sign  : 0.330      nan
+vegetation    : 0.819      nan
+terrain       : 0.372      nan
+sky           : 0.853      nan
+person        : 0.509    0.331
+rider         : 0.225    0.160
+car           : 0.825    0.751
+truck         : 0.277    0.121
+bus           : 0.024    0.015
+train         : 0.031    0.006
+motorcycle    : 0.308    0.110
+bicycle       : 0.430    0.152
+--------------------------------
+Score Average : 0.440    0.206
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.960      nan
+construction  : 0.805      nan
+object        : 0.379      nan
+nature        : 0.816      nan
+sky           : 0.853      nan
+human         : 0.528    0.357
+vehicle       : 0.816    0.718
+--------------------------------
+Score Average : 0.737    0.538
+--------------------------------
+
+no color jitter and same
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.956      nan
+sidewalk      : 0.698      nan
+building      : 0.812      nan
+wall          : 0.121      nan
+fence         : 0.099      nan
+pole          : 0.348      nan
+traffic light : 0.315      nan
+traffic sign  : 0.411      nan
+vegetation    : 0.854      nan
+terrain       : 0.561      nan
+sky           : 0.874      nan
+person        : 0.519    0.385
+rider         : 0.170    0.082
+car           : 0.855    0.769
+truck         : 0.180    0.089
+bus           : 0.015    0.009
+train         : 0.160    0.031
+motorcycle    : 0.328    0.127
+bicycle       : 0.401    0.171
+--------------------------------
+Score Average : 0.457    0.208
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.969      nan
+construction  : 0.821      nan
+object        : 0.392      nan
+nature        : 0.850      nan
+sky           : 0.874      nan
+human         : 0.544    0.410
+vehicle       : 0.815    0.720
+--------------------------------
+Score Average : 0.752    0.565
+--------------------------------
+
+more ratios for crop resize don't do that random crop nice like this

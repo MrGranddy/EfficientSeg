@@ -109,7 +109,7 @@ def main():
         os.makedirs('baseline_run/results_color')
     
     # Load dataset
-    trainset = MiniCity(args.dataset_path, split='train', transforms=train_trans)
+    trainset = MiniCity(args.dataset_path, split='train', transforms=train_trans_alt)
     valset = MiniCity(args.dataset_path, split='val', transforms=test_trans)
     testset = MiniCity(args.dataset_path, split='test', transforms=test_trans)
     dataloaders = {}    
@@ -306,7 +306,7 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             if epoch_step == 0:
                 for i in range( edge.shape[0] ):
                     edge_gray = torch.sum(edge[i,...].float(), dim=0)
-                    edge_pred_gray = torch.mean(edge_pred[i,...], dim=0)
+                    edge_pred_gray = (torch.sum(edge_pred[i,...], dim=0) > 0.7).float()
                     transforms.ToPILImage()(edge_pred_gray.detach().cpu()).save("edge_preds/%d_%d_pred_edge.png" % (epoch, i))
                     transforms.ToPILImage()(edge_gray.detach().cpu()).save("edge_preds/%d_%d_edge.png" % (epoch, i))
 
@@ -532,6 +532,68 @@ def train_trans(image, mask):
     image = TF.adjust_contrast(image, cf)
     image = TF.adjust_saturation(image, sf)
     image = TF.adjust_hue(image, hf)
+
+    # From PIL to Tensor
+    image = TF.to_tensor(image)
+    
+    # Normalize
+    image = TF.normalize(image, args.dataset_mean, args.dataset_std)
+    
+    # Convert ids to train_ids
+    mask = np.array(mask, np.uint8) # PIL Image to numpy array
+    mask = torch.from_numpy(mask) # Numpy array to tensor
+        
+    return image, mask
+
+def train_trans_alt(image, mask):
+    # Generate random parameters for augmentation
+    bf = np.random.uniform(1-args.colorjitter_factor,1+args.colorjitter_factor)
+    cf = np.random.uniform(1-args.colorjitter_factor,1+args.colorjitter_factor)
+    sf = np.random.uniform(1-args.colorjitter_factor,1+args.colorjitter_factor)
+    hf = np.random.uniform(-args.colorjitter_factor,+args.colorjitter_factor)
+    pflip = np.random.randint(0,1) > 0.5
+
+    th, tw = 384, 768
+    h, w = 512, 1024
+
+    # Resize, 1 for Image.LANCZOS
+    image = TF.resize(image, (h, w), interpolation=1)
+    # Resize, 0 for Image.NEAREST
+    mask = TF.resize(mask, (h, w), interpolation=0)
+
+    crop_scales = [1.0, 0.8, 0.6, 0.4]
+    
+    # Random cropping
+    # From PIL to Tensor
+
+    crop_scale = np.random.choice(crop_scales)
+    if crop_scale != 1.0:
+        image = TF.to_tensor(image)
+        mask = TF.to_tensor(mask)
+        h, w = args.train_size
+        ch, cw = [int(x * crop_scale) for x in (h,w)]
+        i = np.random.randint(0, h - ch)
+        j = np.random.randint(0, w - cw)
+        image = image[:,i:i+ch,j:j+cw]
+        mask = mask[:,i:i+ch,j:j+cw]
+        image = TF.to_pil_image(image)
+        mask = TF.to_pil_image(mask[0,:,:])
+
+    # Resize, 1 for Image.LANCZOS
+    image = TF.resize(image, (th, tw), interpolation=1)
+    # Resize, 0 for Image.NEAREST
+    mask = TF.resize(mask, (th, tw), interpolation=0)
+
+    # H-flip
+    if pflip == True and args.hflip == True:
+        image = TF.hflip(image)
+        mask = TF.hflip(mask)
+    
+    # Color jitter
+    #image = TF.adjust_brightness(image, bf)
+    #image = TF.adjust_contrast(image, cf)
+    #image = TF.adjust_saturation(image, sf)
+    #image = TF.adjust_hue(image, hf)
 
     # From PIL to Tensor
     image = TF.to_tensor(image)
