@@ -305,16 +305,16 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             
             if epoch_step == 0:
                 for i in range( edge.shape[0] ):
-                    edge_gray = torch.sum(edge[i,...].float(), dim=0)
-                    edge_pred_gray = (torch.sum(edge_pred[i,...], dim=0) > 0.7).float()
+                    edge_gray = torch.sum(edge[i,...].float().cpu(), dim=0)
+                    edge_pred_gray = (torch.sum(edge_pred[i,...].cpu(), dim=0) > 0.7).float()
                     transforms.ToPILImage()(edge_pred_gray.detach().cpu()).save("edge_preds/%d_%d_pred_edge.png" % (epoch, i))
                     transforms.ToPILImage()(edge_gray.detach().cpu()).save("edge_preds/%d_%d_edge.png" % (epoch, i))
 
             preds = torch.argmax(outputs, 1)
 
             bs, c, h, w = edge.shape
-            edge = edge.view(bs*c*h*w)
-            edge_pred = edge.view(bs*c*h*w)
+            edge = edge.reshape(bs*c*h*w)
+            edge_pred = edge.reshape(bs*c*h*w)
 
             loss = criterion(outputs, labels) + edge_criterion(edge_pred, edge)
             

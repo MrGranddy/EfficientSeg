@@ -578,3 +578,127 @@ Score Average : 0.752    0.565
 --------------------------------
 
 more ratios for crop resize don't do that random crop nice like this
+changed my mind, will add no smaller ratios
+
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.956      nan
+sidewalk      : 0.713      nan
+building      : 0.796      nan
+wall          : 0.131      nan
+fence         : 0.146      nan
+pole          : 0.363      nan
+traffic light : 0.337      nan
+traffic sign  : 0.370      nan
+vegetation    : 0.863      nan
+terrain       : 0.574      nan
+sky           : 0.855      nan
+person        : 0.486    0.336
+rider         : 0.176    0.146
+car           : 0.822    0.763
+truck         : 0.147    0.066
+bus           : 0.026    0.012
+train         : 0.048    0.009
+motorcycle    : 0.366    0.171
+bicycle       : 0.364    0.147
+--------------------------------
+Score Average : 0.449    0.206
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.970      nan
+construction  : 0.810      nan
+object        : 0.391      nan
+nature        : 0.857      nan
+sky           : 0.855      nan
+human         : 0.506    0.374
+vehicle       : 0.787    0.724
+--------------------------------
+Score Average : 0.739    0.549
+--------------------------------
+
+less ratios again
+
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.948      nan
+sidewalk      : 0.670      nan
+building      : 0.804      nan
+wall          : 0.158      nan
+fence         : 0.116      nan
+pole          : 0.352      nan
+traffic light : 0.307      nan
+traffic sign  : 0.433      nan
+vegetation    : 0.846      nan
+terrain       : 0.554      nan
+sky           : 0.879      nan
+person        : 0.479    0.304
+rider         : 0.130    0.060
+car           : 0.851    0.770
+truck         : 0.238    0.089
+bus           : 0.011    0.005
+train         : 0.132    0.027
+motorcycle    : 0.327    0.137
+bicycle       : 0.418    0.130
+--------------------------------
+Score Average : 0.455    0.190
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.969      nan
+construction  : 0.819      nan
+object        : 0.395      nan
+nature        : 0.841      nan
+sky           : 0.879      nan
+human         : 0.508    0.327
+vehicle       : 0.823    0.733
+--------------------------------
+Score Average : 0.748    0.530
+--------------------------------
+
+rerun attım çok yükseldi sonuç, bişi mi dğeiştirdim bilmeden????
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.957      nan
+sidewalk      : 0.712      nan
+building      : 0.817      nan
+wall          : 0.132      nan
+fence         : 0.113      nan
+pole          : 0.359      nan
+traffic light : 0.336      nan
+traffic sign  : 0.430      nan
+vegetation    : 0.843      nan
+terrain       : 0.558      nan
+sky           : 0.897      nan
+person        : 0.529    0.420
+rider         : 0.196    0.104
+car           : 0.834    0.769
+truck         : 0.254    0.091
+bus           : 0.024    0.024
+train         : 0.151    0.035
+motorcycle    : 0.303    0.153
+bicycle       : 0.393    0.174
+--------------------------------
+Score Average : 0.465    0.221
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.966      nan
+construction  : 0.824      nan
+object        : 0.403      nan
+nature        : 0.832      nan
+sky           : 0.897      nan
+human         : 0.545    0.448
+vehicle       : 0.817    0.734
+--------------------------------
+Score Average : 0.755    0.591
+--------------------------------

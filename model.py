@@ -141,6 +141,7 @@ class MobileBlock(nn.Module):
             if drop_connect_rate:
                 x = drop_connect(x, drop_connect_rate=drop_connect_rate, training=self.training)
             x = x + inputs  # skip connection
+
         return x
 
 def depth_multiplier(x, y):
@@ -245,11 +246,11 @@ class up(nn.Module):
         x = self.conv(x)
         return x
 
-
+"""
 from torchsummary import summary
 model = EfficientSeg(20, width_coeff=1.0, depth_coeff=1.0).to( torch.device("cuda:0") )
 summary(model, input_size=[(3,384,768), (384,768)])
-
+"""
 
 #inp = torch.rand(1,3,256,256).to( torch.device("cuda:0") )
 #out = model(inp)
