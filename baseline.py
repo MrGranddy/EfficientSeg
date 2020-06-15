@@ -66,11 +66,11 @@ parser.add_argument('--epochs', metavar='200', default=200, type=int,
 parser.add_argument('--seed', metavar='42', default=None, type=int,
                     help='random seed to use')
 parser.add_argument('--dataset_mean', metavar='[0.485, 0.456, 0.406]',
-                    default=[0.485, 0.456, 0.406], type=list,
-                    help='mean for normalization')
+                    default=[0.485, 0.456, 0.406], type=float,
+                    help='mean for normalization', nargs=3)
 parser.add_argument('--dataset_std', metavar='[0.229, 0.224, 0.225]',
-                    default=[0.229, 0.224, 0.225], type=list,
-                    help='std for normalization')
+                    default=[0.229, 0.224, 0.225], type=float,
+                    help='std for normalization', nargs=3)
 parser.add_argument('--predict', metavar='path/to/weights',
                     default=None, type=str,
                     help='provide path to model weights to predict on validation set')
@@ -88,6 +88,7 @@ def main():
     args.crop_size = tuple(args.crop_size)
     args.train_size = tuple(args.train_size)
     args.test_size = tuple(args.test_size)
+
 
     # Fix seed
     if args.seed is not None:

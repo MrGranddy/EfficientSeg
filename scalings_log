@@ -702,3 +702,47 @@ vehicle       : 0.817    0.734
 --------------------------------
 Score Average : 0.755    0.591
 --------------------------------
+
+added train set mean std to baseline - seemed very good
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.953      nan
+sidewalk      : 0.707      nan
+building      : 0.822      nan
+wall          : 0.063      nan
+fence         : 0.159      nan
+pole          : 0.357      nan
+traffic light : 0.351      nan
+traffic sign  : 0.437      nan
+vegetation    : 0.864      nan
+terrain       : 0.575      nan
+sky           : 0.898      nan
+person        : 0.545    0.368
+rider         : 0.210    0.100
+car           : 0.860    0.803
+truck         : 0.081    0.053
+bus           : 0.003    0.002
+train         : 0.002    0.000
+motorcycle    : 0.409    0.193
+bicycle       : 0.430    0.222
+--------------------------------
+Score Average : 0.459    0.218
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.968      nan
+construction  : 0.833      nan
+object        : 0.405      nan
+nature        : 0.854      nan
+sky           : 0.898      nan
+human         : 0.565    0.387
+vehicle       : 0.821    0.768
+--------------------------------
+Score Average : 0.763    0.577
+--------------------------------
+
+try mse at edge again
+

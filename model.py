@@ -178,28 +178,44 @@ class EfficientSeg(nn.Module):
         self.outc = MobileBlock(ord_1, num_classes)
         self.outd = MobileBlock(ord_1, num_classes)
 
-    def forward(self, x, mask=None):
+    def forward(self, x, mask=None, give_mid_output=False):
         if self.training:
             edge = self.detector(mask)
 
+        if give_mid_output:
+            mid_outputs = []
+
         x1 = self.inc(x)
+        if give_mid_output: mid_outputs.append(x1)
         x2 = self.down1(x1)
+        if give_mid_output: mid_outputs.append(x2)
         x3 = self.down2(x2)
+        if give_mid_output: mid_outputs.append(x3)
         x4 = self.down3(x3)
+        if give_mid_output: mid_outputs.append(x4)
         x5 = self.down4(x4)
+        if give_mid_output: mid_outputs.append(x5)
         x = self.up1(x5,x4)
+        if give_mid_output: mid_outputs.append(x)
         x = self.up2(x,x3)
+        if give_mid_output: mid_outputs.append(x)
         x = self.up3(x,x2)
+        if give_mid_output: mid_outputs.append(x)
         x = self.up4(x,x1)
+        if give_mid_output: mid_outputs.append(x)
         x = self.outb(x)
+        if give_mid_output: mid_outputs.append(x)
         last_x = x
         x = self.outc(x)
+        if give_mid_output: mid_outputs.append(x)
 
         if self.training:
             edge_pred = self.outd(last_x)
 
         if self.training:
-            return x, edge_pred, edge
+            return x, edge_pred, edg
+        elif give_mid_output:
+            return mid_outputs
         else:
             return x
 
