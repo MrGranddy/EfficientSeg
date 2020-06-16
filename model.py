@@ -213,7 +213,7 @@ class EfficientSeg(nn.Module):
             edge_pred = self.outd(last_x)
 
         if self.training:
-            return x, edge_pred, edg
+            return x, edge_pred, edge
         elif give_mid_output:
             return mid_outputs
         else:

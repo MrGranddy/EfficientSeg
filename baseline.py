@@ -126,11 +126,19 @@ def main():
     
     # Load model
     model = EfficientSeg(len(MiniCity.validClasses), width_coeff=1.0, depth_coeff=1.0)
+
+    #weights = [1.0, 6.123740984430034, 1.6566865211424244, 73.71202038134615, 52.673264781685354,
+    #    27.520119385156963, 178.79872658705054, 69.4317528953989, 2.337114791361935, 36.34835392583569,
+    #    9.412047765031472, 28.22678752115612, 277.7301945120456, 5.501073906326564, 145.59740699409429,
+    #    503.92552972192993, 587.9283559418578, 361.1336128921902, 76.84012526738432, 2.8943661168757013]
+    weights = None
+    #weights = torch.tensor(weights).to( torch.device("cuda:0") )
+
     
     # Define loss, optimizer and scheduler
-    criterion = nn.CrossEntropyLoss(ignore_index=MiniCity.voidClass)
+    criterion = nn.CrossEntropyLoss(ignore_index=MiniCity.voidClass, weight=weights)
     edge_criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_init, # TODO adam 1e-4 same setup
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_init,
                                 #momentum=args.lr_momentum,
                                 weight_decay=args.lr_weight_decay
                                 )
@@ -181,7 +189,7 @@ def main():
     for epoch in range(start_epoch,args.epochs):
 
         #for param_group in optimizer.param_groups:
-        #    param_group["lr"] = 0.256 * (0.97 ** (epoch // 2.4))
+        #    param_group["lr"] = 0.32 * (0.97 ** (epoch // 2.4))
         
         # Train
         print('--- Training ---')
@@ -307,7 +315,7 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             if epoch_step == 0:
                 for i in range( edge.shape[0] ):
                     edge_gray = torch.sum(edge[i,...].float().cpu(), dim=0)
-                    edge_pred_gray = (torch.sum(edge_pred[i,...].cpu(), dim=0) > 0.7).float()
+                    edge_pred_gray = (torch.sum(edge_pred[i,...].cpu(), dim=0) > 0.95).float()
                     transforms.ToPILImage()(edge_pred_gray.detach().cpu()).save("edge_preds/%d_%d_pred_edge.png" % (epoch, i))
                     transforms.ToPILImage()(edge_gray.detach().cpu()).save("edge_preds/%d_%d_edge.png" % (epoch, i))
 

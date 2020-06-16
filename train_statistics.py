@@ -48,3 +48,13 @@ std_img /= cnt
 std_R, std_G, std_B = (torch.mean(std_img, dim=(1,2))) ** 0.5
 
 print("Std:", std_R, std_G, std_B)
+
+class_counts = [0 for _ in range(20)]
+
+for epoch_step, (_, labels, _) in enumerate(loader):
+    for idx in range(20):
+        class_counts[idx] += int(torch.sum(labels == idx))
+
+scaled_counts = [ x / max(class_counts) for x in class_counts]
+coeffs = [ 1 / x for x in scaled_counts]
+print(coeffs)
