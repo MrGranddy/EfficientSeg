@@ -138,3 +138,5 @@ baseline_run/
 vipriors-challenges-toolkit/
 edge_preds/
 mid_outputs/
+reconstructions/
+temp/

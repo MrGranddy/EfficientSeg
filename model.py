@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import math
 import numpy as np
 import scipy.ndimage
-
+import torchvision.transforms.functional as TF
 device = torch.device("cuda:0")
 
 def drop_connect(inputs, training: bool = False, drop_connect_rate: float = 0.):
@@ -61,6 +61,24 @@ class EdgeDetector(nn.Module):
         edge_map /= torch.max(edge_map)
         
         return (edge_map > 0.3).float()
+
+class ClassRemover(nn.Module):
+    def __init__(self, num_removed):
+        super().__init__()
+
+        self.num_removed = num_removed
+
+    def forward(self, image, mask):
+        eliminated = image.clone()
+
+        for i in range(image.shape[0]):
+            vals = torch.unique(mask[i,...])
+            perm = torch.randperm(vals.size(0))
+            idx = perm[:self.num_removed]
+            vals = vals[idx]
+            for val in vals:
+                eliminated[i,...] *= (mask[i,...] != val)
+        return eliminated
 
 class MobileBlock(nn.Module):
     def __init__(self, in_chn, out_chn, kernel_size=3, stride=1, expand_ratio=1, bn_mom=0.99, bn_eps=1e-3, se_ratio=0.25, id_skip=True):
@@ -157,7 +175,10 @@ class EfficientSeg(nn.Module):
     def __init__(self, num_classes, depth_coeff, width_coeff):
         super(EfficientSeg, self).__init__()
 
-        self.detector = EdgeDetector(num_classes, gaussian_size=11)
+        #self.detector = EdgeDetector(num_classes, gaussian_size=11)
+        #self.eliminator = ClassRemover(10)
+
+        expand_ratio = 1
 
         ord_1 = width_multiplier(64, width_coeff)
         ord_2 = ord_1 * 2
@@ -166,21 +187,23 @@ class EfficientSeg(nn.Module):
         ord_5 = ord_4 * 2
 
         self.inc = MobileBlock(3, ord_1)
-        self.down1 = down(ord_1, ord_2, repeat=depth_multiplier(1, depth_coeff))
-        self.down2 = down(ord_2, ord_3, repeat=depth_multiplier(2, depth_coeff))
-        self.down3 = down(ord_3, ord_4, kernel_size=5, repeat=depth_multiplier(2, depth_coeff))
-        self.down4 = down(ord_4, ord_4, repeat=depth_multiplier(3, depth_coeff))
-        self.up1 = up(ord_5, ord_3, kernel_size=5, repeat=depth_multiplier(3, depth_coeff))
-        self.up2 = up(ord_4, ord_2, kernel_size=5, repeat=depth_multiplier(4, depth_coeff))
-        self.up3 = up(ord_3, ord_1, repeat=depth_multiplier(1, depth_coeff))
-        self.up4 = up(ord_2, ord_1, repeat=depth_multiplier(1, depth_coeff))
-        self.outb = MobileBlock(ord_1, ord_1)
-        self.outc = MobileBlock(ord_1, num_classes)
-        self.outd = MobileBlock(ord_1, num_classes)
+        self.down1 = down(ord_1, ord_2, repeat=depth_multiplier(1, depth_coeff), expand_ratio=expand_ratio)
+        self.down2 = down(ord_2, ord_3, repeat=depth_multiplier(2, depth_coeff), expand_ratio=expand_ratio)
+        self.down3 = down(ord_3, ord_4, kernel_size=5, repeat=depth_multiplier(2, depth_coeff), expand_ratio=expand_ratio)
+        self.down4 = down(ord_4, ord_4, repeat=depth_multiplier(3, depth_coeff), expand_ratio=expand_ratio)
+        self.up1 = up(ord_5, ord_3, kernel_size=5, repeat=depth_multiplier(3, depth_coeff), expand_ratio=expand_ratio)
+        self.up2 = up(ord_4, ord_2, kernel_size=5, repeat=depth_multiplier(4, depth_coeff), expand_ratio=expand_ratio)
+        self.up3 = up(ord_3, ord_1, repeat=depth_multiplier(1, depth_coeff), expand_ratio=expand_ratio)
+        self.up4 = up(ord_2, ord_1, repeat=depth_multiplier(1, depth_coeff), expand_ratio=expand_ratio)
+        self.reg1 = MobileBlock(ord_1, ord_1, expand_ratio=expand_ratio)
+        self.reg2 = MobileBlock(ord_1, ord_1, expand_ratio=expand_ratio)
+        self.outa = MobileBlock(ord_1, num_classes)
+        self.outb = MobileBlock(ord_1, num_classes * 3)
 
     def forward(self, x, mask=None, give_mid_output=False):
-        if self.training:
-            edge = self.detector(mask)
+
+        #if self.training:
+            #eliminated = self.eliminator(x, mask)
 
         if give_mid_output:
             mid_outputs = []
@@ -203,17 +226,21 @@ class EfficientSeg(nn.Module):
         if give_mid_output: mid_outputs.append(x)
         x = self.up4(x,x1)
         if give_mid_output: mid_outputs.append(x)
-        x = self.outb(x)
+        x = self.reg1(x)
         if give_mid_output: mid_outputs.append(x)
+        x = self.reg2(x)
+        if give_mid_output: mid_outputs.append(x)
+
         last_x = x
-        x = self.outc(x)
+
+        x = self.outa(x)
         if give_mid_output: mid_outputs.append(x)
 
         if self.training:
-            edge_pred = self.outd(last_x)
+            pieces = self.outb(last_x)
 
         if self.training:
-            return x, edge_pred, edge
+            return x, pieces
         elif give_mid_output:
             return mid_outputs
         else:
@@ -264,7 +291,7 @@ class up(nn.Module):
 
 """
 from torchsummary import summary
-model = EfficientSeg(20, width_coeff=1.0, depth_coeff=1.0).to( torch.device("cuda:0") )
+model = EfficientSeg(20, width_coeff=1.0, depth_coeff=1.2).to( torch.device("cuda:0") )
 summary(model, input_size=[(3,384,768), (384,768)])
 """
 

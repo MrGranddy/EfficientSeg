@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image
 from helpers.minicity import MiniCity
 import torchvision.transforms.functional as TF
+import torch.nn.functional as F
 import torch
 from model import EfficientSeg
 
@@ -17,6 +18,8 @@ dataset_path = "./minicity"
 
 dataset_mean = [0.2870, 0.3257, 0.2854]
 dataset_std = [0.1879, 0.1908, 0.1880]
+
+h, w = size = 384, 768
 
 def transform(image, mask):
     th, tw = 384, 768
@@ -88,9 +91,11 @@ for epoch_step, (inputs, _, _) in enumerate(dataloaders[key]):
     sample_dir = sub_dir + str(epoch_step) + "/"
     os.makedirs( sample_dir )
     for idx, output in enumerate(outputs):
-        out = torch.mean(output.squeeze(0), dim=0, keepdim=True)
-        img = TF.to_pil_image(out.cpu()).save(sample_dir + str(idx) + ".png")
+        out = F.interpolate(output, size=size, mode="bilinear").squeeze(0).cpu()
+        for chn in range(out.shape[0]):
+            TF.to_pil_image(out[chn, ...]).save(sample_dir + str(idx) + "_" + str(chn) + ".png")
 
+"""
 key = "val"
 sub_dir = dest_dir + key + "/"
 os.makedirs(sub_dir)
@@ -98,6 +103,7 @@ for epoch_step, (inputs, _, _) in enumerate(dataloaders[key]):
     inputs = inputs.to( torch.device("cuda:0") )
     outputs = model(inputs, give_mid_output=True)
     print(epoch_step)
+"""
 
 """
 key = "test"

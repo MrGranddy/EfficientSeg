@@ -85,7 +85,6 @@ Main method
 def main(): 
     global args
     args = parser.parse_args()
-    args.crop_size = tuple(args.crop_size)
     args.train_size = tuple(args.train_size)
     args.test_size = tuple(args.test_size)
 
@@ -101,9 +100,6 @@ def main():
                       'You may see unexpected behavior when restarting '
                       'from checkpoints.')
 
-    assert args.crop_size[0] <= args.train_size[0] and args.crop_size[1] <= args.train_size[1], \
-    'Crop size must be <= image size.'
-    
     # Create directory to store run files
     if not os.path.isdir('baseline_run'):
         os.makedirs('baseline_run/images')
@@ -137,7 +133,9 @@ def main():
     
     # Define loss, optimizer and scheduler
     criterion = nn.CrossEntropyLoss(ignore_index=MiniCity.voidClass, weight=weights)
-    edge_criterion = nn.BCEWithLogitsLoss()
+    #edge_criterion = nn.BCEWithLogitsLoss()
+    edge_criterion = nn.MSELoss()
+    reconstruction_loss = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_init,
                                 #momentum=args.lr_momentum,
                                 weight_decay=args.lr_weight_decay
@@ -182,7 +180,7 @@ def main():
     
     # Generate log file
     with open('baseline_run/log_epoch.csv', 'a') as epoch_log:
-        epoch_log.write('epoch, train loss, val loss, train acc, val acc, miou\n')
+        epoch_log.write('epoch, train loss, val loss, train acc, val acc, miou, seg_loss, rec_loss\n')
     
     since = time.time()
     
@@ -193,9 +191,11 @@ def main():
         
         # Train
         print('--- Training ---')
-        train_loss, train_acc = train_epoch(dataloaders['train'], model,
+        train_loss, train_acc, seg_loss, rec_loss = train_epoch(dataloaders['train'], model,
                                             criterion, optimizer, None,
-                                            epoch, void=MiniCity.voidClass, edge_criterion=edge_criterion)
+                                            epoch, void=MiniCity.voidClass, edge_criterion=edge_criterion, reconstruction_loss=reconstruction_loss,
+                                            dataset_mean=torch.tensor(args.dataset_mean).view(1,3,1,1).repeat(1, len(MiniCity.validClasses), 1, 1),
+                                            dataset_std=torch.tensor(args.dataset_std).view(1,3,1,1).repeat(1, len(MiniCity.validClasses), 1, 1))
         metrics['train_loss'].append(train_loss)
         metrics['train_acc'].append(train_acc)
         print('Epoch {} train loss: {:.4f}, acc: {:.4f}'.format(epoch,train_loss,train_acc))
@@ -216,8 +216,8 @@ def main():
         
         # Write logs
         with open('baseline_run/log_epoch.csv', 'a') as epoch_log:
-            epoch_log.write('{}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}\n'.format(
-                    epoch, train_loss, val_loss, train_acc, val_acc, miou))
+            epoch_log.write('{}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}\n'.format(
+                    epoch, train_loss, val_loss, train_acc, val_acc, miou, seg_loss, rec_loss))
         
         # Save checkpoint
         torch.save({
@@ -276,11 +276,13 @@ Routine functions
 =================
 """
 
-def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, void=-1, edge_criterion=None):
+def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, void=-1, reconstruction_loss=None, edge_criterion=None, dataset_mean=None, dataset_std=None):
 
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     loss_running = AverageMeter('Loss', ':.4e')
+    seg_running = AverageMeter('Loss', ':.4e')
+    rec_running = AverageMeter('Loss', ':.4e')
     acc_running = AverageMeter('Accuracy', ':.3f')
     progress = ProgressMeter(
         len(dataloader),
@@ -310,22 +312,39 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             optimizer.zero_grad()
         
             # forward pass
-            outputs, edge_pred, edge = model(inputs, labels)
-            
+            outputs, pieces = model(inputs, labels)
+
+            real_pieces = inputs.repeat(1, len(MiniCity.validClasses), 1, 1)
+            wide_mask = labels.unsqueeze(1).repeat(1,3,1,1)
+
+            for i in range(len(MiniCity.validClasses)):
+                real_pieces[:, i*3 : (i+1)*3, :, : ] *= (wide_mask == i)
+
+            #if epoch_step == 0:
+            #    for i in range( edge.shape[0] ):
+            #        edge_gray = torch.sum(edge[i,...].float().cpu(), dim=0)
+            #        edge_pred_gray = (torch.sum(edge_pred[i,...].cpu(), dim=0)).float()
+            #        transforms.ToPILImage()(edge_pred_gray.detach().cpu()).save("edge_preds/%d_%d_pred_edge.png" % (epoch, i))
+            #        transforms.ToPILImage()(edge_gray.detach().cpu()).save("edge_preds/%d_%d_edge.png" % (epoch, i))
+
             if epoch_step == 0:
-                for i in range( edge.shape[0] ):
-                    edge_gray = torch.sum(edge[i,...].float().cpu(), dim=0)
-                    edge_pred_gray = (torch.sum(edge_pred[i,...].cpu(), dim=0) > 0.95).float()
-                    transforms.ToPILImage()(edge_pred_gray.detach().cpu()).save("edge_preds/%d_%d_pred_edge.png" % (epoch, i))
-                    transforms.ToPILImage()(edge_gray.detach().cpu()).save("edge_preds/%d_%d_edge.png" % (epoch, i))
+                inp = real_pieces.cpu().detach() * dataset_std + dataset_mean
+                rec = pieces.cpu().detach() * dataset_std + dataset_mean
+                i = 0
+                for j in range( len(MiniCity.validClasses) ):
+                    TF.to_pil_image( inp[i, j*3:(j+1)*3, ...] ).save("reconstructions/%d_%d_%d_real_img.png" % (epoch, i, j))
+                    TF.to_pil_image( rec[i, j*3:(j+1)*3, ...] ).save("reconstructions/%d_%d_%d_rec_img.png" % (epoch, i, j))
 
             preds = torch.argmax(outputs, 1)
 
-            bs, c, h, w = edge.shape
-            edge = edge.reshape(bs*c*h*w)
-            edge_pred = edge.reshape(bs*c*h*w)
+            #bs, c, h, w = edge.shape
+            #edge = edge.reshape(bs*c*h*w)
+            #edge_pred = edge.reshape(bs*c*h*w)
 
-            loss = criterion(outputs, labels) + edge_criterion(edge_pred, edge)
+            seg_loss = criterion(outputs, labels)
+            rec_loss = reconstruction_loss(real_pieces, pieces)
+
+            loss = seg_loss + rec_loss # + edge_criterion(edge_pred, edge)
             
             # backward pass
             loss.backward()
@@ -335,6 +354,8 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             bs = inputs.size(0) # current batch size
             loss = loss.item()
             loss_running.update(loss, bs)
+            seg_running.update(seg_loss, bs)
+            rec_running.update(rec_loss, bs)
             corrects = torch.sum(preds == labels.data)
             nvoid = int((labels==void).sum())
             acc = corrects.double()/(bs*res-nvoid) # correct/(batch_size*resolution-voids)
@@ -349,7 +370,7 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
 
         # Reduce learning rate
         
-    return loss_running.avg, acc_running.avg
+    return loss_running.avg, acc_running.avg, seg_running.avg, rec_running.avg
 
     
 def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasses, void=-1, maskColors=None):
@@ -556,15 +577,11 @@ def train_trans(image, mask):
 
 def train_trans_alt(image, mask):
     # Generate random parameters for augmentation
-    bf = np.random.uniform(1-args.colorjitter_factor,1+args.colorjitter_factor)
-    cf = np.random.uniform(1-args.colorjitter_factor,1+args.colorjitter_factor)
-    sf = np.random.uniform(1-args.colorjitter_factor,1+args.colorjitter_factor)
-    hf = np.random.uniform(-args.colorjitter_factor,+args.colorjitter_factor)
     pflip = np.random.randint(0,1) > 0.5
 
     th, tw = 384, 768
     h, w = 512, 1024
-
+    
     # Resize, 1 for Image.LANCZOS
     image = TF.resize(image, (h, w), interpolation=1)
     # Resize, 0 for Image.NEAREST

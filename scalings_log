@@ -1034,4 +1034,212 @@ vehicle       : 0.824    0.753
 Score Average : 0.754    0.577
 --------------------------------
 
+bce
+
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.945      nan
+sidewalk      : 0.675      nan
+building      : 0.810      nan
+wall          : 0.069      nan
+fence         : 0.115      nan
+pole          : 0.342      nan
+traffic light : 0.356      nan
+traffic sign  : 0.402      nan
+vegetation    : 0.844      nan
+terrain       : 0.559      nan
+sky           : 0.887      nan
+person        : 0.472    0.408
+rider         : 0.134    0.085
+car           : 0.834    0.759
+truck         : 0.149    0.082
+bus           : 0.036    0.039
+train         : 0.005    0.001
+motorcycle    : 0.233    0.111
+bicycle       : 0.407    0.159
+--------------------------------
+Score Average : 0.436    0.205
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.967      nan
+construction  : 0.816      nan
+object        : 0.381      nan
+nature        : 0.843      nan
+sky           : 0.887      nan
+human         : 0.486    0.428
+vehicle       : 0.804    0.728
+--------------------------------
+Score Average : 0.741    0.578
+--------------------------------
+
+mse
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.932      nan
+sidewalk      : 0.645      nan
+building      : 0.820      nan
+wall          : 0.123      nan
+fence         : 0.090      nan
+pole          : 0.367      nan
+traffic light : 0.369      nan
+traffic sign  : 0.460      nan
+vegetation    : 0.861      nan
+terrain       : 0.580      nan
+sky           : 0.903      nan
+person        : 0.502    0.395
+rider         : 0.067    0.048
+car           : 0.833    0.743
+truck         : 0.293    0.124
+bus           : 0.010    0.008
+train         : 0.113    0.024
+motorcycle    : 0.356    0.200
+bicycle       : 0.382    0.203
+--------------------------------
+Score Average : 0.458    0.218
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.965      nan
+construction  : 0.832      nan
+object        : 0.416      nan
+nature        : 0.857      nan
+sky           : 0.903      nan
+human         : 0.525    0.417
+vehicle       : 0.809    0.726
+--------------------------------
+Score Average : 0.758    0.572
+--------------------------------
+
+fikirler:
+1. laplacian pyramid
+
+no expand start 24 input size
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.946      nan
+sidewalk      : 0.673      nan
+building      : 0.783      nan
+wall          : 0.105      nan
+fence         : 0.061      nan
+pole          : 0.306      nan
+traffic light : 0.144      nan
+traffic sign  : 0.270      nan
+vegetation    : 0.838      nan
+terrain       : 0.533      nan
+sky           : 0.882      nan
+person        : 0.400    0.303
+rider         : 0.105    0.053
+car           : 0.827    0.745
+truck         : 0.168    0.064
+bus           : 0.029    0.017
+train         : 0.022    0.004
+motorcycle    : 0.171    0.052
+bicycle       : 0.342    0.089
+--------------------------------
+Score Average : 0.400    0.166
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.965      nan
+construction  : 0.807      nan
+object        : 0.311      nan
+nature        : 0.838      nan
+sky           : 0.882      nan
+human         : 0.415    0.328
+vehicle       : 0.782    0.692
+--------------------------------
+Score Average : 0.714    0.510
+--------------------------------
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.937      nan
+sidewalk      : 0.620      nan
+building      : 0.792      nan
+wall          : 0.165      nan
+fence         : 0.084      nan
+pole          : 0.317      nan
+traffic light : 0.264      nan
+traffic sign  : 0.340      nan
+vegetation    : 0.846      nan
+terrain       : 0.559      nan
+sky           : 0.877      nan
+person        : 0.359    0.295
+rider         : 0.110    0.073
+car           : 0.809    0.742
+truck         : 0.110    0.061
+bus           : 0.002    0.002
+train         : 0.000    0.000
+motorcycle    : 0.224    0.151
+bicycle       : 0.337    0.118
+--------------------------------
+Score Average : 0.408    0.180
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.965      nan
+construction  : 0.801      nan
+object        : 0.345      nan
+nature        : 0.843      nan
+sky           : 0.877      nan
+human         : 0.381    0.326
+vehicle       : 0.768    0.696
+--------------------------------
+Score Average : 0.712    0.511
+--------------------------------
+
+without edge logic
+
+classes          IoU      nIoU
+--------------------------------
+road          : 0.939      nan
+sidewalk      : 0.656      nan
+building      : 0.795      nan
+wall          : 0.071      nan
+fence         : 0.123      nan
+pole          : 0.308      nan
+traffic light : 0.177      nan
+traffic sign  : 0.324      nan
+vegetation    : 0.825      nan
+terrain       : 0.484      nan
+sky           : 0.898      nan
+person        : 0.403    0.295
+rider         : 0.157    0.063
+car           : 0.822    0.765
+truck         : 0.085    0.025
+bus           : 0.010    0.007
+train         : 0.001    0.000
+motorcycle    : 0.290    0.106
+bicycle       : 0.350    0.116
+--------------------------------
+Score Average : 0.406    0.172
+--------------------------------
+
+
+categories       IoU      nIoU
+--------------------------------
+flat          : 0.960      nan
+construction  : 0.803      nan
+object        : 0.329      nan
+nature        : 0.827      nan
+sky           : 0.898      nan
+human         : 0.437    0.310
+vehicle       : 0.795    0.732
+--------------------------------
+Score Average : 0.722    0.521
+--------------------------------
+
+
 
