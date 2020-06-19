@@ -81,7 +81,7 @@ class ClassRemover(nn.Module):
         return eliminated
 
 class MobileBlock(nn.Module):
-    def __init__(self, in_chn, out_chn, kernel_size=3, stride=1, expand_ratio=1, bn_mom=0.99, bn_eps=1e-3, se_ratio=0.25, id_skip=True):
+    def __init__(self, in_chn, out_chn, kernel_size=3, stride=1, expand_ratio=1, bn_mom=0.99, bn_eps=1e-3, se_ratio=0.25, id_skip=True, drop_connect_rate=0):
         super().__init__()
 
         self.expand_ratio = expand_ratio
@@ -90,6 +90,7 @@ class MobileBlock(nn.Module):
         self.out_chn = out_chn
         self.stride = stride
         self.id_skip = id_skip
+        self.drop_connect_rate = drop_connect_rate
 
         # Expansion phase
         inp = in_chn
@@ -124,7 +125,7 @@ class MobileBlock(nn.Module):
 
         self.relu = nn.ReLU()
 
-    def forward(self, inputs, drop_connect_rate=0.2):
+    def forward(self, inputs, drop_connect_rate=0.4):
 
         # Expansion and Depthwise Convolution
         x = inputs
@@ -157,7 +158,7 @@ class MobileBlock(nn.Module):
         if self.id_skip and input_filters == output_filters and self.stride == 1:
             # The combination of skip connection and drop connect brings about stochastic depth.
             if drop_connect_rate:
-                x = drop_connect(x, drop_connect_rate=drop_connect_rate, training=self.training)
+                x = drop_connect(x, drop_connect_rate=self.drop_connect_rate, training=self.training)
             x = x + inputs  # skip connection
 
         return x
@@ -172,13 +173,14 @@ def width_multiplier(x, y):
     return res
 
 class EfficientSeg(nn.Module):
-    def __init__(self, num_classes, depth_coeff, width_coeff):
+    def __init__(self, num_classes, depth_coeff, width_coeff, drop_connect_rate=0.3):
         super(EfficientSeg, self).__init__()
 
         #self.detector = EdgeDetector(num_classes, gaussian_size=11)
         #self.eliminator = ClassRemover(10)
 
         expand_ratio = 1
+        self.drop_connect_rate = drop_connect_rate
 
         ord_1 = width_multiplier(64, width_coeff)
         ord_2 = ord_1 * 2
@@ -187,23 +189,20 @@ class EfficientSeg(nn.Module):
         ord_5 = ord_4 * 2
 
         self.inc = MobileBlock(3, ord_1)
-        self.down1 = down(ord_1, ord_2, repeat=depth_multiplier(1, depth_coeff), expand_ratio=expand_ratio)
-        self.down2 = down(ord_2, ord_3, repeat=depth_multiplier(2, depth_coeff), expand_ratio=expand_ratio)
-        self.down3 = down(ord_3, ord_4, kernel_size=5, repeat=depth_multiplier(2, depth_coeff), expand_ratio=expand_ratio)
-        self.down4 = down(ord_4, ord_4, repeat=depth_multiplier(3, depth_coeff), expand_ratio=expand_ratio)
-        self.up1 = up(ord_5, ord_3, kernel_size=5, repeat=depth_multiplier(3, depth_coeff), expand_ratio=expand_ratio)
-        self.up2 = up(ord_4, ord_2, kernel_size=5, repeat=depth_multiplier(4, depth_coeff), expand_ratio=expand_ratio)
-        self.up3 = up(ord_3, ord_1, repeat=depth_multiplier(1, depth_coeff), expand_ratio=expand_ratio)
-        self.up4 = up(ord_2, ord_1, repeat=depth_multiplier(1, depth_coeff), expand_ratio=expand_ratio)
-        self.reg1 = MobileBlock(ord_1, ord_1, expand_ratio=expand_ratio)
-        self.reg2 = MobileBlock(ord_1, ord_1, expand_ratio=expand_ratio)
-        self.outa = MobileBlock(ord_1, num_classes)
-        self.outb = MobileBlock(ord_1, num_classes * 3)
+        self.down1 = down(ord_1, ord_2, repeat=depth_multiplier(1, depth_coeff), expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (0))
+        self.down2 = down(ord_2, ord_3, repeat=depth_multiplier(2, depth_coeff), expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (1/10))
+        self.down3 = down(ord_3, ord_4, kernel_size=5, repeat=depth_multiplier(2, depth_coeff), expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (2/10))
+        self.down4 = down(ord_4, ord_4, repeat=depth_multiplier(3, depth_coeff), expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (3/10))
+        self.up1 = up(ord_5, ord_3, kernel_size=5, repeat=depth_multiplier(3, depth_coeff), expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (4/10))
+        self.up2 = up(ord_4, ord_2, kernel_size=5, repeat=depth_multiplier(4, depth_coeff), expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (5/10))
+        self.up3 = up(ord_3, ord_1, repeat=depth_multiplier(1, depth_coeff), expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (6/10))
+        self.up4 = up(ord_2, ord_1, repeat=depth_multiplier(1, depth_coeff), expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (7/10))
+        self.reg1 = MobileBlock(ord_1, ord_1, expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (8/10))
+        self.reg2 = MobileBlock(ord_1, ord_1, expand_ratio=expand_ratio, drop_connect_rate=self.drop_connect_rate * (9/10))
+        self.outa = MobileBlock(ord_1, num_classes, drop_connect_rate=self.drop_connect_rate)
+        #self.outb = MobileBlock(ord_1, num_classes * 3, drop_connect_rate=self.drop_connect_rate)
 
     def forward(self, x, mask=None, give_mid_output=False):
-
-        #if self.training:
-            #eliminated = self.eliminator(x, mask)
 
         if give_mid_output:
             mid_outputs = []
@@ -236,26 +235,26 @@ class EfficientSeg(nn.Module):
         x = self.outa(x)
         if give_mid_output: mid_outputs.append(x)
 
-        if self.training:
-            pieces = self.outb(last_x)
+        #if self.training:
+        #    pieces = self.outb(last_x)
 
         if self.training:
-            return x, pieces
+            return x, None#, pieces
         elif give_mid_output:
             return mid_outputs
         else:
             return x
 
 class down(nn.Module):
-    def __init__(self, in_ch, out_ch, kernel_size=3, expand_ratio=1, repeat=1):
+    def __init__(self, in_ch, out_ch, kernel_size=3, expand_ratio=1, repeat=1, drop_connect_rate=0):
         super(down, self).__init__()
         reps = []
         for _ in range(repeat-1):
-            reps.append( MobileBlock(in_ch, in_ch, kernel_size=kernel_size, expand_ratio=expand_ratio) )
+            reps.append( MobileBlock(in_ch, in_ch, kernel_size=kernel_size, expand_ratio=expand_ratio, drop_connect_rate=drop_connect_rate) )
         self.mpconv = nn.Sequential(
             nn.MaxPool2d(2),
             *reps,
-            MobileBlock(in_ch, out_ch, kernel_size=kernel_size, expand_ratio=expand_ratio)
+            MobileBlock(in_ch, out_ch, kernel_size=kernel_size, expand_ratio=expand_ratio, drop_connect_rate=drop_connect_rate)
         )
 
     def forward(self, x):
@@ -264,15 +263,15 @@ class down(nn.Module):
 
 
 class up(nn.Module):
-    def __init__(self, in_ch, out_ch, kernel_size=3, expand_ratio=1, repeat=1):
+    def __init__(self, in_ch, out_ch, kernel_size=3, expand_ratio=1, repeat=1, drop_connect_rate=0):
         super(up, self).__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         reps = []
         for _ in range(repeat-1):
-            reps.append( MobileBlock(in_ch, in_ch, kernel_size=kernel_size, expand_ratio=expand_ratio) )
+            reps.append( MobileBlock(in_ch, in_ch, kernel_size=kernel_size, expand_ratio=expand_ratio, drop_connect_rate=drop_connect_rate) )
         self.conv = nn.Sequential( *reps, 
-            MobileBlock(in_ch, out_ch, kernel_size=kernel_size, expand_ratio=expand_ratio)
+            MobileBlock(in_ch, out_ch, kernel_size=kernel_size, expand_ratio=expand_ratio, drop_connect_rate=drop_connect_rate)
         )
 
     def forward(self, x1, x2):
@@ -289,11 +288,11 @@ class up(nn.Module):
         x = self.conv(x)
         return x
 
-"""
+
 from torchsummary import summary
-model = EfficientSeg(20, width_coeff=1.0, depth_coeff=1.2).to( torch.device("cuda:0") )
-summary(model, input_size=[(3,384,768), (384,768)])
-"""
+model = EfficientSeg(20, width_coeff=1.5, depth_coeff=1.2).to( torch.device("cpu") )
+summary(model, input_size=[(3,256,512)], device="cpu", batch_size=2)
+
 
 #inp = torch.rand(1,3,256,256).to( torch.device("cuda:0") )
 #out = model(inp)

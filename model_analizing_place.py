@@ -10,6 +10,7 @@ from model import EfficientSeg
 
 
 model_pack = torch.load("baseline_run/best_weights.pth.tar")
+#model_pack = torch.load("baseline_run/checkpoint.pth.tar")
 model_state_dict = model_pack["model_state_dict"]
 
 batch_size = 1

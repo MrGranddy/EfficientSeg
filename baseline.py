@@ -106,7 +106,7 @@ def main():
         os.makedirs('baseline_run/results_color')
     
     # Load dataset
-    trainset = MiniCity(args.dataset_path, split='train', transforms=train_trans_alt)
+    trainset = MiniCity(args.dataset_path, split='train', transforms=new_gen_train_trans)
     valset = MiniCity(args.dataset_path, split='val', transforms=test_trans)
     testset = MiniCity(args.dataset_path, split='test', transforms=test_trans)
     dataloaders = {}    
@@ -121,14 +121,12 @@ def main():
                pin_memory=args.pin_memory, num_workers=args.num_workers)
     
     # Load model
-    model = EfficientSeg(len(MiniCity.validClasses), width_coeff=1.0, depth_coeff=1.0)
+    model = EfficientSeg(len(MiniCity.validClasses), width_coeff=1.5, depth_coeff=1.2)
 
-    #weights = [1.0, 6.123740984430034, 1.6566865211424244, 73.71202038134615, 52.673264781685354,
-    #    27.520119385156963, 178.79872658705054, 69.4317528953989, 2.337114791361935, 36.34835392583569,
-    #    9.412047765031472, 28.22678752115612, 277.7301945120456, 5.501073906326564, 145.59740699409429,
-    #    503.92552972192993, 587.9283559418578, 361.1336128921902, 76.84012526738432, 2.8943661168757013]
-    weights = None
+    #weights = [1.0, 2.47, 1.28, 8.58, 7.25, 5.24, 13.37, 8.33, 1.52, 6.02, 3.06, 5.31, 16.66, 2.34, 12.06, 22.44, 24.24, 19.00, 8.76, 1.70]
     #weights = torch.tensor(weights).to( torch.device("cuda:0") )
+
+    weights = None
 
     
     # Define loss, optimizer and scheduler
@@ -307,6 +305,10 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             
             inputs = inputs.float().cuda()
             labels = labels.long().cuda()
+
+            rec_coeff = 10 * (1 + 1.03 ** epoch)
+
+            _, _, h, w = inputs.shape
             
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -316,9 +318,10 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
 
             real_pieces = inputs.repeat(1, len(MiniCity.validClasses), 1, 1)
             wide_mask = labels.unsqueeze(1).repeat(1,3,1,1)
+            wider_mask = torch.zeros_like(wide_mask).repeat(1,len(MiniCity.validClasses),1,1)
 
             for i in range(len(MiniCity.validClasses)):
-                real_pieces[:, i*3 : (i+1)*3, :, : ] *= (wide_mask == i)
+                wider_mask[:, i*3 : (i+1)*3, :, : ] = (wide_mask == i)
 
             #if epoch_step == 0:
             #    for i in range( edge.shape[0] ):
@@ -327,6 +330,9 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             #        transforms.ToPILImage()(edge_pred_gray.detach().cpu()).save("edge_preds/%d_%d_pred_edge.png" % (epoch, i))
             #        transforms.ToPILImage()(edge_gray.detach().cpu()).save("edge_preds/%d_%d_edge.png" % (epoch, i))
 
+            real_pieces = wider_mask * real_pieces
+            #pieces = wider_mask * pieces
+            """
             if epoch_step == 0:
                 inp = real_pieces.cpu().detach() * dataset_std + dataset_mean
                 rec = pieces.cpu().detach() * dataset_std + dataset_mean
@@ -334,17 +340,17 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
                 for j in range( len(MiniCity.validClasses) ):
                     TF.to_pil_image( inp[i, j*3:(j+1)*3, ...] ).save("reconstructions/%d_%d_%d_real_img.png" % (epoch, i, j))
                     TF.to_pil_image( rec[i, j*3:(j+1)*3, ...] ).save("reconstructions/%d_%d_%d_rec_img.png" % (epoch, i, j))
+            """
 
             preds = torch.argmax(outputs, 1)
 
-            #bs, c, h, w = edge.shape
-            #edge = edge.reshape(bs*c*h*w)
-            #edge_pred = edge.reshape(bs*c*h*w)
 
             seg_loss = criterion(outputs, labels)
-            rec_loss = reconstruction_loss(real_pieces, pieces)
+            #diff = torch.sum(torch.abs(real_pieces - pieces), dim=(2,3)) / ( (torch.sum(wider_mask, dim=(2,3)) + 1) * h * w )
+            #rec_loss = torch.sum( torch.square( pieces - real_pieces ) ) / torch.sum(wider_mask)
+            rec_loss = torch.tensor(0)
 
-            loss = seg_loss + rec_loss # + edge_criterion(edge_pred, edge)
+            loss = seg_loss #+ rec_loss # + edge_criterion(edge_pred, edge)
             
             # backward pass
             loss.backward()
@@ -576,18 +582,23 @@ def train_trans(image, mask):
     return image, mask
 
 def train_trans_alt(image, mask):
-    # Generate random parameters for augmentation
-    pflip = np.random.randint(0,1) > 0.5
 
+    colorjitter_factor = 0.2
     th, tw = 384, 768
     h, w = 512, 1024
-    
+    crop_scales = [1.0, 0.8, 0.6, 0.4]
+
+    # Generate random parameters for augmentation
+    pflip = np.random.randint(0,1) > 0.5
+    bf = np.random.uniform(1-colorjitter_factor,1+colorjitter_factor)
+    cf = np.random.uniform(1-colorjitter_factor,1+colorjitter_factor)
+    sf = np.random.uniform(1-colorjitter_factor,1+colorjitter_factor)
+    hf = np.random.uniform(-colorjitter_factor,colorjitter_factor)
+
     # Resize, 1 for Image.LANCZOS
     image = TF.resize(image, (h, w), interpolation=1)
     # Resize, 0 for Image.NEAREST
     mask = TF.resize(mask, (h, w), interpolation=0)
-
-    crop_scales = [1.0, 0.8, 0.6, 0.4]
     
     # Random cropping
     # From PIL to Tensor
@@ -615,11 +626,11 @@ def train_trans_alt(image, mask):
         image = TF.hflip(image)
         mask = TF.hflip(mask)
     
-    # Color jitter
-    #image = TF.adjust_brightness(image, bf)
-    #image = TF.adjust_contrast(image, cf)
-    #image = TF.adjust_saturation(image, sf)
-    #image = TF.adjust_hue(image, hf)
+    #Color jitter
+    image = TF.adjust_brightness(image, bf)
+    image = TF.adjust_contrast(image, cf)
+    image = TF.adjust_saturation(image, sf)
+    image = TF.adjust_hue(image, hf)
 
     # From PIL to Tensor
     image = TF.to_tensor(image)
@@ -631,6 +642,62 @@ def train_trans_alt(image, mask):
     mask = np.array(mask, np.uint8) # PIL Image to numpy array
     mask = torch.from_numpy(mask) # Numpy array to tensor
         
+    return image, mask
+
+from imgaug import augmenters as iaa
+import imgaug as ia
+import torch.nn.functional as F
+
+def new_gen_train_trans(image, mask):
+
+    image = np.array(image)
+    mask = np.array(mask)
+
+    th, tw = 384, 768
+    h, w = mask.shape
+
+    crop_scales = [1.0, 0.8, 0.6, 0.4]
+    hue_factor = 0.5
+    brightness_factor = 0.5
+    p_flip = 0.5
+    jpeg_scale = 10, 70
+
+    crop_scale = np.random.choice(crop_scales)
+    ch, cw = [int(x * crop_scale) for x in (h,w)]
+    if crop_scale != 1.0:
+        i = np.random.randint(0, h - ch)
+        j = np.random.randint(0, w - cw)
+        image = image[i:i+ch,j:j+cw,:]
+        mask = mask[i:i+ch,j:j+cw]
+
+    if np.random.rand() < p_flip:
+        image = np.flip(image, axis=1)
+        mask = np.flip(mask, axis=1)
+
+    brightness = iaa.MultiplyBrightness((1-brightness_factor, 1+brightness_factor))
+    hue = iaa.MultiplyHue((1-hue_factor, 1+hue_factor))
+    jpeg = iaa.JpegCompression(compression=jpeg_scale)
+
+    img_transforms = iaa.Sequential([brightness, hue, jpeg])
+    image = img_transforms(image=image)
+
+    image = Image.fromarray(image)
+    mask = Image.fromarray(mask)
+
+    # Resize, 1 for Image.LANCZOS
+    image = TF.resize(image, (th, tw), interpolation=1)
+    # Resize, 0 for Image.NEAREST
+    mask = TF.resize(mask, (th, tw), interpolation=0)
+
+    # From PIL to Tensor
+    image = TF.to_tensor(image)
+    # Normalize
+    image = TF.normalize(image, args.dataset_mean, args.dataset_std)
+
+    # Convert ids to train_ids
+    mask = np.array(mask, np.uint8)
+    mask = torch.from_numpy(mask) # Numpy array to tensor
+
     return image, mask
 
 """
