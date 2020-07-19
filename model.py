@@ -1,11 +1,5 @@
 import torch
 from torch import nn
-from efficientnet_pytorch import EfficientNet
-import torch.nn.functional as F
-import math
-import numpy as np
-import scipy.ndimage
-import torchvision.transforms.functional as TF
 device = torch.device("cuda:0")
 
 def _make_divisible(v, divisor, min_value=None):

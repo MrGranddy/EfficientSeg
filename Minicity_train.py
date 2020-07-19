@@ -72,14 +72,13 @@ class MiniCity_train(Cityscapes):
 		image = image[int(self.epoch_image_main_direcs[index,0]):int(self.epoch_image_main_direcs[index,0]+self.train_size[0]), int(self.epoch_image_main_direcs[index,1]):int(self.epoch_image_main_direcs[index,1]+self.train_size[1]), :]
 		mask = mask[int(self.epoch_image_main_direcs[index,0]):int(self.epoch_image_main_direcs[index,0]+self.train_size[0]), int(self.epoch_image_main_direcs[index,1]):int(self.epoch_image_main_direcs[index,1]+self.train_size[1])]
 
-		brightness = iaa.MultiplyBrightness((1 - brightness_factor, 1 + brightness_factor))
 		hue = iaa.MultiplyHue((1 - hue_factor, 1 + hue_factor))
 		jpeg = iaa.JpegCompression(compression=jpeg_scale)
 		rotator = iaa.Affine(rotate=rotation_angle)
 
 		if np.random.rand() < p_imgaug:
 
-			img_transforms = iaa.Sequential([hue, rotator])
+			img_transforms = iaa.Sequential([jpeg, hue, rotator])
 			image = img_transforms(image=image)
 
 			rotator = iaa.Affine(rotate=rotation_angle, order=0, cval=19)
@@ -143,9 +142,6 @@ class MiniCity_train(Cityscapes):
 		self.image_size = (512,1024)
 		self.train_size = (384, 768)
 
-		del self.centroids[11]
-		del self.centroids[9]
-		del self.centroids[12]
 
 		assert split in ['train', 'val', 'test'], 'Unknown value {} for argument split.'.format(split)
 
@@ -264,92 +260,9 @@ class MiniCity_train(Cityscapes):
 
 		image, target = self.train_trans(image, target, index)
 
-		#print("X:" + str(np.unique(target)))
-
 		target = self.id2trainid[target]
-
-		#print("X:" + str(np.unique(target)))
 
 		return image, target
 
 	def __len__(self):
 		return len(self.images)+self.class_additions*len(self.centroids.keys())
-
-
-
-# trainset = MiniCity_train("./minicity", split='train', class_additions=20)
-# trainset.create_an_epoch()
-#
-# trainset_loader = torch.utils.data.DataLoader(trainset, batch_size=1, shuffle=False, pin_memory=True, num_workers=1)
-#
-#
-# for epoch_step, (inputs, labels) in enumerate(trainset_loader):
-#
-# 	if epoch_step < 200:
-# 		continue
-#
-# 	inputs = (inputs.squeeze().permute((1,2,0)).float().numpy()*255).astype(np.uint8)
-# 	labels = labels.long().numpy().squeeze().astype(np.uint8)
-#
-# 	cv2.imwrite(str(epoch_step) + '.png', inputs)
-#
-# 	unique_labels = np.unique(labels)
-#
-# 	sel_label = (epoch_step-200)//20 + 3
-#
-# 	labels_mask = (labels == sel_label).reshape(inputs.shape[0],inputs.shape[1],1)
-# 	labels_mask = np.tile(labels_mask,(1,1,3))
-#
-#
-# 	cv2.imwrite(str(epoch_step)+'-'+ str(sel_label)+'.png', inputs*labels_mask)
-#
-
-
-# def test_trans(image, mask=None):
-# 	# Resize, 1 for Image.LANCZOS
-# 	image = TF.resize(image, (1024,2048), interpolation=1)
-# 	# From PIL to Tensor
-# 	image = TF.to_tensor(image)
-# 	# Normalize
-# 	#image = TF.normalize(image, args.dataset_mean, args.dataset_std)
-#
-# 	if mask:
-# 		# Resize, 0 for Image.NEAREST
-# 		mask = TF.resize(mask, (1024,2048), interpolation=0)
-# 		mask = np.array(mask, np.uint8) # PIL Image to numpy array
-# 		mask = torch.from_numpy(mask) # Numpy array to tensor
-# 		return image, mask
-# 	else:
-# 		return image
-#
-# from helpers.minicity import MiniCity
-#
-#
-# valset = MiniCity("./minicity", split='val', transforms=test_trans)
-#
-# dataloaders_val = torch.utils.data.DataLoader(valset,
-# 		   batch_size=1, shuffle=False,
-# 		   pin_memory=True, num_workers=1)
-#
-# for epoch_step, (inputs, labels, filepath) in enumerate(dataloaders_val):
-#
-#
-# 	inputs = (inputs.squeeze().permute((1,2,0)).float().numpy()*255).astype(np.uint8)
-# 	labels = labels.long().numpy().squeeze().astype(np.uint8)
-#
-# 	cv2.imwrite(str(epoch_step) + '_ts.png', inputs)
-#
-# 	# unique_labels = np.unique(labels)
-# 	#
-# 	# for i in range(len(unique_labels)):
-# 	#
-# 	# 	sel_label = unique_labels[i]
-# 	#
-# 	# 	labels_mask = (labels == sel_label).reshape(inputs.shape[0],inputs.shape[1],1)
-# 	# 	labels_mask = np.tile(labels_mask,(1,1,3))
-# 	#
-# 	#
-# 	# 	cv2.imwrite(str(epoch_step)+'-'+ str(sel_label)+'_new.png', inputs*labels_mask)
-#
-# 	if epoch_step == 50:
-# 		break

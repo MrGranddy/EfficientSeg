@@ -49,21 +49,9 @@ class MiniCity(Cityscapes):
 
         for file_name in os.listdir(self.images_dir):
             self.images.append(os.path.join(self.images_dir, file_name))
-            if split == 'train':
+            if split != 'test':
                 target_name = '{}_{}'.format(file_name.split('_leftImg8bit')[0],
                                                  'gtFine_labelIds.png')
-
-                self.targets.append(os.path.join(self.targets_dir, target_name))
-
-            if split == 'val':
-                target_name = '{}_{}'.format(' ' +file_name.split('.png')[0],
-                                             'gtFine_labelIds.png')
-
-                #print(os.path.join(self.targets_dir, target_name))
-
-                #target = Image.open(os.path.join(self.targets_dir, target_name))
-
-
                 self.targets.append(os.path.join(self.targets_dir, target_name))
             
     

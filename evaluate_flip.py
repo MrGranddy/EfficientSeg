@@ -60,34 +60,6 @@ criterion = nn.CrossEntropyLoss(ignore_index=MiniCity.voidClass, weight=torch.fr
 																								  )).float().cuda())
 
 
-def test_trans_5deg(image, mask=None):
-	# Resize, 1 for Image.LANCZOS
-	image = TF.resize(image, test_size, interpolation=1)
-
-	image = np.array(image)
-
-
-	image_reshaped = np.zeros((image.shape[0]*3,image.shape[1]*3,3))
-
-	image_reshaped[image.shape[0]:image.shape[0]*2, image.shape[1]:image.shape[1]*2,:] = image
-
-	#rotator = iaa.Affine(rotate=0)
-	#image = rotator(image=image_reshaped)
-
-	image = image_reshaped
-
-	# From PIL to Tensor
-	image = TF.to_tensor(image)#torch.Size([3, 512, 1024])
-
-	# Normalize
-	image = TF.normalize(image, dataset_mean, dataset_std)
-
-
-	mask = TF.resize(mask, test_size, interpolation=0)
-	mask = np.array(mask, np.uint8) # PIL Image to numpy array
-	mask = torch.from_numpy(mask) # Numpy array to tensor
-	return image, mask
-
 def test_trans(image, mask=None):
 	# Resize, 1 for Image.LANCZOS
 	image = TF.resize(image, test_size, interpolation=1)
@@ -104,30 +76,6 @@ def test_trans(image, mask=None):
 		return image, mask
 	else:
 		return image
-
-def vislbl(label, mask_colors):
-	label = label.cpu()
-	# Convert label data to visual representation
-	label = np.array(label.numpy())
-	if label.shape[-1] == 1:
-		label = label[:,:,0]
-
-	# Convert train_ids to colors
-	label = mask_colors[label]
-	return label
-
-def visim(img):
-	img = img.cpu()
-	# Convert image data to visual representation
-	img *= torch.tensor(dataset_std)[:,None,None]
-	img += torch.tensor(dataset_mean)[:,None,None]
-	npimg = (img.numpy()*255).astype('uint8')
-	if len(npimg.shape) == 3 and npimg.shape[0] == 3:
-		npimg = np.transpose(npimg, (1, 2, 0))
-	else:
-		npimg = npimg[0,:,:]
-	return npimg
-
 
 
 def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasses, void=-1, maskColors=None, flip = False,deg=None):
@@ -171,14 +119,6 @@ def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasse
 
 			# forward
 			outputs = model(inputs)
-
-
-			if deg != None:
-
-				preds = outputs.squeeze().permute((1,2,0)).cpu().numpy()
-
-				#rotator = iaa.Affine(rotate=-deg, order=0, cval=19)
-				outputs = torch.from_numpy(preds[test_size[0]:test_size[0]*2, test_size[1]:test_size[1]*2,:]).cuda().permute((2,0,1)).unsqueeze(0)
 
 
 			if flip:
@@ -229,85 +169,51 @@ model = EfficientSeg(enc_config=enc_config, dec_config=None, num_classes=len(Min
 model = model.cuda()
 
 
-
-#model_states = ['best_weights0.5701434786223034.pth.tar', 'best_weights0.5701709298202121.pth.tar', 'best_weights0.5705692485382649.pth.tar', 'best_weights0.5706960924935263.pth.tar',
-#				'best_weights0.5707014705959753.pth.tar', 'best_weights0.5708345545793978.pth.tar', 'best_weights0.5713351926425956.pth.tar', 'best_weights0.5740528525200369.pth.tar']
-
-model_states = ['best_weights0.5740528525200369.pth.tar']
-
+model_state	= "best_weights_effseg_minicity.tar"
 
 image_predictions = torch.zeros((200,20,test_size[0],test_size[1])).float()
 image_labels = torch.zeros((200,test_size[0],test_size[1])).long()
 
-all_filepaths = []
 
+checkpoint = torch.load(model_state)
 
-for i in range(len(model_states)):
-
-	checkpoint = torch.load('/mnt/disk5/EfficientSeg_attrous/baseline_run/' +model_states[0])
-
-	model.load_state_dict(checkpoint['model_state_dict'], strict=True)
-
-
-	# testset_5deg = MiniCity('./minicity', split='val', transforms=test_trans_5deg)
-	#
-	# dataloader_test = torch.utils.data.DataLoader(testset_5deg,
-	# 											  batch_size=1, shuffle=False,
-	# 											  pin_memory=True, num_workers=2)
-	#
-	#
-	# val_acc, val_loss, miou, all_predictions, all_labels = validate_epoch(dataloader_test,
-	# 										 model,
-	# 										 criterion, i,
-	# 										 MiniCity.classLabels,
-	# 										 MiniCity.validClasses,
-	# 										 void=MiniCity.voidClass,
-	# 										 maskColors=MiniCity.mask_colors, flip=False,deg=0)
-	#
-	# image_predictions += all_predictions.cpu()
-	# image_labels = all_labels.cpu()
-
-
-	testset = MiniCity('./minicity', split='val', transforms=test_trans)
-
-	dataloader_test = torch.utils.data.DataLoader(testset,
-												  batch_size=1, shuffle=False,
-												  pin_memory=True, num_workers=2)
-
-
-
-	val_acc, val_loss, miou, all_predictions, all_labels, all_filepaths = validate_epoch(dataloader_test,
-											 model,
-											 criterion, i,
-											 MiniCity.classLabels,
-											 MiniCity.validClasses,
-											 void=MiniCity.voidClass,
-											 maskColors=MiniCity.mask_colors, flip=True, deg=None)
-
-	image_predictions += all_predictions.cpu()
-	image_labels = all_labels.cpu()
-
-	val_acc, val_loss, miou, all_predictions, all_labels, all_filepaths = validate_epoch(dataloader_test,
-											 model,
-											 criterion, i,
-											 MiniCity.classLabels,
-											 MiniCity.validClasses,
-											 void=MiniCity.voidClass,
-											 maskColors=MiniCity.mask_colors, flip=False, deg=None)
-
-	image_predictions += all_predictions.cpu()
-	image_labels = all_labels.cpu()
+model.load_state_dict(checkpoint['model_state_dict'], strict=True)
 
 
 
 
-#softmaxed_predictions = F.softmax(image_predictions, 2)
+testset = MiniCity('./minicity', split='val', transforms=test_trans)
 
-#print(softmaxed_predictions.shape)
+dataloader_test = torch.utils.data.DataLoader(testset,
+											  batch_size=1, shuffle=False,
+											  pin_memory=True, num_workers=2)
 
-#image_predictions = torch.sum(image_predictions,0)
 
-#print(softmaxed_predictions.shape)
+
+val_acc, val_loss, miou, all_predictions, all_labels, all_filepaths = validate_epoch(dataloader_test,
+										 model,
+										 criterion, 0,
+										 MiniCity.classLabels,
+										 MiniCity.validClasses,
+										 void=MiniCity.voidClass,
+										 maskColors=MiniCity.mask_colors, flip=True, deg=None)
+
+image_predictions += all_predictions.cpu()
+image_labels = all_labels.cpu()
+
+val_acc, val_loss, miou, all_predictions, all_labels, all_filepaths = validate_epoch(dataloader_test,
+										 model,
+										 criterion, 1,
+										 MiniCity.classLabels,
+										 MiniCity.validClasses,
+										 void=MiniCity.voidClass,
+										 maskColors=MiniCity.mask_colors, flip=False, deg=None)
+
+image_predictions += all_predictions.cpu()
+image_labels = all_labels.cpu()
+
+
+
 
 preds = torch.argmax(image_predictions, 1)
 
@@ -328,10 +234,3 @@ for i in range(preds.shape[0]):
 	pred_id = Image.fromarray(pred_id)
 	pred_id = pred_id.resize((2048, 1024), resample=Image.NEAREST)
 	pred_id.save('results/'+ selected_filepath)
-
-#image_predictions = image_predictions.cpu().numpy()
-#image_labels = image_labels.cpu().numpy()
-
-#print(np.sum(image_labels[0,:,:,:]-image_labels[1,:,:,:]))
-
-#np.save('/mnt/disk2/images_labels.npy', {'image_predictions': image_predictions,'image_labels': image_labels[0,:,:,:]})
