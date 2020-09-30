@@ -12,3 +12,5 @@ How to run:
 - Using evaluate_flip.py, you can evaluate the model.
 
 - If you have any questions feel free to ask us via yesilkaynak15@itu.edu.tr
+
+- The paper can be found here: https://arxiv.org/abs/2009.06469
